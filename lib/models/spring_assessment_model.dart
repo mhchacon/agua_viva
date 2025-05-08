@@ -29,6 +29,7 @@ class SpringAssessment {
   // Owner information
   final String ownerName;
   final bool hasCAR; // Cadastro Ambiental Rural
+  final String? carNumber;
   
   // Location
   final Location location;
@@ -94,6 +95,7 @@ class SpringAssessment {
     required this.environmentalServices,
     required this.ownerName,
     required this.hasCAR,
+    this.carNumber,
     required this.location,
     required this.altitude,
     required this.municipality,
@@ -140,6 +142,7 @@ class SpringAssessment {
       environmentalServices: List<String>.from(json['environmentalServices'] ?? []),
       ownerName: json['ownerName'] ?? '',
       hasCAR: json['hasCAR'] ?? false,
+      carNumber: json['carNumber'],
       location: json['location'] != null 
         ? Location.fromJson(json['location']) 
         : Location(latitude: 0, longitude: 0),
@@ -189,6 +192,7 @@ class SpringAssessment {
       'environmentalServices': environmentalServices,
       'ownerName': ownerName,
       'hasCAR': hasCAR,
+      'carNumber': carNumber,
       'location': location.toJson(),
       'altitude': altitude,
       'municipality': municipality,
@@ -237,6 +241,7 @@ class Spring {
   final String municipality;
   final String reference;
   final bool hasCAR;
+  final String? carNumber;
   final bool hasAPP;
   final String appStatus;
   final DateTime createdAt;
@@ -251,6 +256,7 @@ class Spring {
     required this.municipality,
     required this.reference,
     required this.hasCAR,
+    this.carNumber,
     required this.hasAPP,
     required this.appStatus,
     required this.createdAt,
@@ -270,6 +276,7 @@ class Spring {
       municipality: json['municipality'] ?? '',
       reference: json['reference'] ?? '',
       hasCAR: json['hasCAR'] ?? false,
+      carNumber: json['carNumber'],
       hasAPP: json['hasAPP'] ?? false,
       appStatus: json['appStatus'] ?? '',
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
@@ -288,6 +295,7 @@ class Spring {
       'municipality': municipality,
       'reference': reference,
       'hasCAR': hasCAR,
+      'carNumber': carNumber,
       'hasAPP': hasAPP,
       'appStatus': appStatus,
       'createdAt': createdAt.toIso8601String(),

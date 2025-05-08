@@ -5,6 +5,7 @@ import 'package:agua_viva/models/spring_assessment_model.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/theme.dart';
 import 'package:agua_viva/utils/image_upload.dart';
+import 'package:agua_viva/screens/review_and_submit_screen.dart';
 
 class AssessmentFormScreen extends StatefulWidget {
   final String? existingAssessmentId;
@@ -28,6 +29,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   // Owner Information
   final TextEditingController _ownerNameController = TextEditingController();
   bool _hasCAR = false;
+  final TextEditingController _carNumberController = TextEditingController();
   
   // Location
   final TextEditingController _latitudeController = TextEditingController();
@@ -114,6 +116,25 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   // For loading existing data
   bool _dataLoaded = false;
 
+  // Adicionar controladores para datas
+  DateTime? _selectedAnalysisDate;
+  DateTime? _selectedFlowRateDate;
+  DateTime? _selectedPhotoDate;
+
+  // Função utilitária para exibir o DatePicker
+  Future<void> _selectDate(BuildContext context, DateTime? initialDate, Function(DateTime) onDateSelected) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) {
+      onDateSelected(picked);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +166,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     _altitudeController.dispose();
     _municipalityController.dispose();
     _referenceController.dispose();
+    _carNumberController.dispose();
     super.dispose();
   }
 
@@ -160,6 +182,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         // Set all form fields from assessment data
         _ownerNameController.text = assessment.ownerName;
         _hasCAR = assessment.hasCAR;
+        _carNumberController.text = assessment.carNumber ?? '';
         
         _latitudeController.text = assessment.location.latitude.toString();
         _longitudeController.text = assessment.location.longitude.toString();
@@ -245,6 +268,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         municipality: _municipalityController.text,
         reference: _referenceController.text,
         hasCAR: _hasCAR,
+        carNumber: _hasCAR ? _carNumberController.text : null,
         hasAPP: _hasAPP,
         appStatus: _appStatus,
         createdAt: DateTime.now(),
@@ -262,6 +286,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         environmentalServices: [], // Simplified for MVP
         ownerName: _ownerNameController.text,
         hasCAR: _hasCAR,
+        carNumber: _hasCAR ? _carNumberController.text : null,
         location: Location(
           latitude: double.parse(_latitudeController.text),
           longitude: double.parse(_longitudeController.text),
@@ -314,7 +339,54 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         ),
       );
 
-      Navigator.of(context).pop();
+      // Montar dados para revisão
+      final assessmentData = {
+        'ownerName': _ownerNameController.text,
+        'hasCAR': _hasCAR,
+        'carNumber': _carNumberController.text,
+        'latitude': _latitudeController.text,
+        'longitude': _longitudeController.text,
+        'altitude': _altitudeController.text,
+        'municipality': _municipalityController.text,
+        'reference': _referenceController.text,
+        'hasAPP': _hasAPP,
+        'appStatus': _appStatus,
+        'hasWaterFlow': _hasWaterFlow,
+        'hasWetlandVegetation': _hasWetlandVegetation,
+        'hasFavorableTopography': _hasFavorableTopography,
+        'hasSoilSaturation': _hasSoilSaturation,
+        'springType': _springType,
+        'springCharacteristic': _springCharacteristic,
+        'diffusePoints': _diffusePoints,
+        'flowRegime': _flowRegime,
+        'ownerResponse': _ownerResponse,
+        'informationSource': _informationSource,
+        'hydroEnvironmentalScores': _hydroEnvironmentalScores,
+        'hydroEnvironmentalTotal': _calculateHydroEnvironmentalTotal(),
+        'surroundingConditions': _surroundingConditions,
+        'springConditions': _springConditions,
+        'anthropicImpacts': _anthropicImpacts,
+        'riskTotal': _anthropicImpacts.values.fold(0, (sum, score) => sum + score),
+        'generalState': _generalState,
+        'primaryUse': _primaryUse,
+        'hasWaterAnalysis': _hasWaterAnalysis,
+        'analysisDate': _analysisDate,
+        'analysisParameters': _analysisParameters,
+        'hasFlowRate': _hasFlowRate,
+        'flowRateValue': _flowRateValue,
+        'flowRateDate': _flowRateDate,
+        'photoReferences': _photoReferences,
+        'recommendations': _recommendations,
+      };
+      final classification = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => ReviewAndSubmitScreen(
+            assessmentData: assessmentData,
+            classification: classification,
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -360,7 +432,54 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           onStepContinue: () {
             final lastStep = _currentStep >= 7;
             if (lastStep) {
-              _saveAssessment(true);
+              // Montar dados para revisão
+              final assessmentData = {
+                'ownerName': _ownerNameController.text,
+                'hasCAR': _hasCAR,
+                'carNumber': _carNumberController.text,
+                'latitude': _latitudeController.text,
+                'longitude': _longitudeController.text,
+                'altitude': _altitudeController.text,
+                'municipality': _municipalityController.text,
+                'reference': _referenceController.text,
+                'hasAPP': _hasAPP,
+                'appStatus': _appStatus,
+                'hasWaterFlow': _hasWaterFlow,
+                'hasWetlandVegetation': _hasWetlandVegetation,
+                'hasFavorableTopography': _hasFavorableTopography,
+                'hasSoilSaturation': _hasSoilSaturation,
+                'springType': _springType,
+                'springCharacteristic': _springCharacteristic,
+                'diffusePoints': _diffusePoints,
+                'flowRegime': _flowRegime,
+                'ownerResponse': _ownerResponse,
+                'informationSource': _informationSource,
+                'hydroEnvironmentalScores': _hydroEnvironmentalScores,
+                'hydroEnvironmentalTotal': _calculateHydroEnvironmentalTotal(),
+                'surroundingConditions': _surroundingConditions,
+                'springConditions': _springConditions,
+                'anthropicImpacts': _anthropicImpacts,
+                'riskTotal': _anthropicImpacts.values.fold(0, (sum, score) => sum + score),
+                'generalState': _generalState,
+                'primaryUse': _primaryUse,
+                'hasWaterAnalysis': _hasWaterAnalysis,
+                'analysisDate': _analysisDate,
+                'analysisParameters': _analysisParameters,
+                'hasFlowRate': _hasFlowRate,
+                'flowRateValue': _flowRateValue,
+                'flowRateDate': _flowRateDate,
+                'photoReferences': _photoReferences,
+                'recommendations': _recommendations,
+              };
+              final classification = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ReviewAndSubmitScreen(
+                    assessmentData: assessmentData,
+                    classification: classification,
+                  ),
+                ),
+              );
             } else {
               setState(() {
                 _currentStep += 1;
@@ -389,7 +508,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
                             : Theme.of(context).colorScheme.primary,
                       ),
                       child: Text(
-                        isLastStep ? 'Enviar' : 'Continuar',
+                        isLastStep ? 'Enviar' : 'Próximo',
                       ),
                     ),
                   ),
@@ -451,6 +570,27 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             },
             activeColor: Theme.of(context).colorScheme.primary,
           ),
+          if (_hasCAR) ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _carNumberController,
+              decoration: const InputDecoration(
+                labelText: 'Número do CAR',
+                border: OutlineInputBorder(),
+                hintText: 'Digite o número do CAR (41 caracteres)',
+              ),
+              maxLength: 41,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Por favor, informe o número do CAR';
+                }
+                if (value.length != 41) {
+                  return 'O número do CAR deve ter 41 caracteres';
+                }
+                return null;
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           const Text(
             'Localização Geográfica',
@@ -888,26 +1028,99 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   }
 
   String _getEnvironmentalClassification(int score) {
-    if (score <= 11) {
-      return 'Severamente Impactada';
-    } else if (score <= 22) {
-      return 'Moderadamente Impactada';
+    if (score >= 31) {
+      return 'Ótimo';
+    } else if (score >= 28) {
+      return 'Bom';
+    } else if (score >= 25) {
+      return 'Razoável';
+    } else if (score >= 22) {
+      return 'Ruim';
     } else {
-      return 'Preservada';
+      return 'Péssimo';
     }
   }
 
   Color _getEnvironmentalColor(int score) {
-    if (score <= 11) {
-      return Colors.red;
-    } else if (score <= 22) {
-      return Colors.orange;
+    if (score >= 31) {
+      return const Color(0xFF00E676); // Ótimo - verde vivo
+    } else if (score >= 28) {
+      return Colors.green; // Bom - verde
+    } else if (score >= 25) {
+      return Colors.yellow[700]!; // Razoável - amarelo
+    } else if (score >= 22) {
+      return Colors.orange; // Ruim - laranja
     } else {
-      return Colors.green;
+      return Colors.red; // Péssimo - vermelho
     }
   }
 
   Widget _buildScoreRadioGroup(String title, String scoreKey) {
+    // Opções específicas para cada parâmetro
+    final Map<String, List<Map<String, dynamic>>> options = {
+      'waterColor': [
+        {'label': 'Escura', 'value': 1},
+        {'label': 'Clara', 'value': 2},
+        {'label': 'Transparente', 'value': 3},
+      ],
+      'waterOdor': [
+        {'label': 'Forte', 'value': 1},
+        {'label': 'Com odor', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'solidWaste': [
+        {'label': 'Presente', 'value': 1},
+        {'label': 'Com odor', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'floatingMaterials': [
+        {'label': 'Muito', 'value': 1},
+        {'label': 'Pouco', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'foam': [
+        {'label': 'Muito', 'value': 1},
+        {'label': 'Pouco', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'oils': [
+        {'label': 'Muito', 'value': 1},
+        {'label': 'Pouco', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'sewage': [
+        {'label': 'Visível', 'value': 1},
+        {'label': 'Provável', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'vegetation': [
+        {'label': 'Ausente', 'value': 1},
+        {'label': 'Alterada', 'value': 2},
+        {'label': 'Bom estado', 'value': 3},
+      ],
+      'uses': [
+        {'label': 'Presente', 'value': 1},
+        {'label': 'Moderada', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'access': [
+        {'label': 'Acentuada', 'value': 1},
+        {'label': 'Moderada', 'value': 2},
+        {'label': 'Ausente', 'value': 3},
+      ],
+      'urbanEquipment': [
+        {'label': '< 50 metros', 'value': 1},
+        {'label': '50 a 100 metros', 'value': 2},
+        {'label': '> 100 metros', 'value': 3},
+      ],
+    };
+
+    final paramOptions = options[scoreKey] ?? [
+      {'label': 'Ruim', 'value': 1},
+      {'label': 'Médio', 'value': 2},
+      {'label': 'Bom', 'value': 3},
+    ];
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -921,11 +1134,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildScoreRadio(scoreKey, 1, 'Ruim'),
-                _buildScoreRadio(scoreKey, 2, 'Médio'),
-                _buildScoreRadio(scoreKey, 3, 'Bom'),
-              ],
+              children: paramOptions.map((opt) => _buildScoreRadio(scoreKey, opt['value'], opt['label'])).toList(),
             ),
           ],
         ),
@@ -1057,6 +1266,19 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   }
 
   Step _buildAnthropicImpactsStep() {
+    final totalScore = _anthropicImpacts.values.fold(0, (sum, score) => sum + score);
+    String riskClass = '';
+    Color riskColor = Colors.green;
+    if (totalScore <= 21) {
+      riskClass = 'Baixo';
+      riskColor = Colors.green;
+    } else if (totalScore <= 31) {
+      riskClass = 'Médio';
+      riskColor = Colors.amber;
+    } else {
+      riskClass = 'Alto';
+      riskColor = Colors.red;
+    }
     return Step(
       title: const Text('Impactos Antrópicos e Ambientais'),
       content: Column(
@@ -1120,9 +1342,9 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           _buildRiskRadioGroup(
             'Compactação do Solo',
             {
-              1: 'Ausente',
-              2: 'Moderada',
-              3: 'Severa',
+              1: 'Solo solto',
+              2: 'Levemente compactado',
+              3: 'Altamente compactado',
             },
             'soilCompaction',
             _anthropicImpacts,
@@ -1130,12 +1352,26 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           _buildRiskRadioGroup(
             'Fontes de Poluição',
             {
-              1: 'Ausentes',
-              2: 'Distantes',
-              3: 'Próximas',
+              1: 'Nenhuma',
+              2: 'Resíduos/agroquímicos moderados',
+              3: 'Contaminação visível',
             },
             'pollutionSources',
             _anthropicImpacts,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Pontuação Total: $totalScore/42',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Classe de Risco: $riskClass',
+            style: TextStyle(
+              fontSize: 16,
+              color: riskColor,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -1263,6 +1499,20 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
               });
             },
           ),
+          if (_primaryUse == 'Outro') ...[
+            const SizedBox(height: 8),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Descreva o uso principal',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _recommendations = value;
+                });
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           const Text(
             'Análise da Água',
@@ -1278,6 +1528,43 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             },
             activeColor: Theme.of(context).colorScheme.primary,
           ),
+          if (_hasWaterAnalysis) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => _selectDate(context, _selectedAnalysisDate, (date) {
+                setState(() {
+                  _selectedAnalysisDate = date;
+                  _analysisDate = date;
+                });
+              }),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Data da análise',
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(
+                  _selectedAnalysisDate != null
+                      ? '${_selectedAnalysisDate!.day.toString().padLeft(2, '0')}/${_selectedAnalysisDate!.month.toString().padLeft(2, '0')}/${_selectedAnalysisDate!.year}'
+                      : 'Selecione a data',
+                  style: TextStyle(
+                    color: _selectedAnalysisDate != null ? Colors.black : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Parâmetros analisados',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _analysisParameters = value;
+                });
+              },
+            ),
+          ],
           const SizedBox(height: 16),
           const Text(
             'Medição de Vazão',
@@ -1296,7 +1583,6 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           if (_hasFlowRate) ...[
             const SizedBox(height: 8),
             TextFormField(
-              initialValue: _flowRateValue?.toString(),
               decoration: const InputDecoration(
                 labelText: 'Vazão (L/s)',
                 border: OutlineInputBorder(),
@@ -1308,7 +1594,65 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
                 });
               },
             ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => _selectDate(context, _selectedFlowRateDate, (date) {
+                setState(() {
+                  _selectedFlowRateDate = date;
+                  _flowRateDate = date;
+                });
+              }),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Data da medição',
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(
+                  _selectedFlowRateDate != null
+                      ? '${_selectedFlowRateDate!.day.toString().padLeft(2, '0')}/${_selectedFlowRateDate!.month.toString().padLeft(2, '0')}/${_selectedFlowRateDate!.year}'
+                      : 'Selecione a data',
+                  style: TextStyle(
+                    color: _selectedFlowRateDate != null ? Colors.black : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
           ],
+          const SizedBox(height: 16),
+          const Text(
+            'Foto da nascente',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.camera_alt),
+            label: const Text('Adicionar foto'),
+            onPressed: () {
+              // TODO: Implementar upload de foto
+            },
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => _selectDate(context, _selectedPhotoDate, (date) {
+              setState(() {
+                _selectedPhotoDate = date;
+                // TODO: Salvar data da foto
+              });
+            }),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Data da foto',
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                _selectedPhotoDate != null
+                    ? '${_selectedPhotoDate!.day.toString().padLeft(2, '0')}/${_selectedPhotoDate!.month.toString().padLeft(2, '0')}/${_selectedPhotoDate!.year}'
+                    : 'Selecione a data',
+                style: TextStyle(
+                  color: _selectedPhotoDate != null ? Colors.black : Colors.grey[600],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           const Text(
             'Recomendações Técnicas',

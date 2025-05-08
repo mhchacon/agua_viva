@@ -5,6 +5,7 @@ import 'package:agua_viva/screens/login_screen.dart';
 import 'package:agua_viva/screens/dashboard_screen.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/theme.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,15 @@ class MyApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         home: const AuthGate(),
         debugShowCheckedModeBanner: false,
+        localizationsDelegates: [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: [
+          Locale('pt', 'BR'),
+          Locale('en', 'US'),
+        ],
       ),
     );
   }
