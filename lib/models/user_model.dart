@@ -1,60 +1,45 @@
-class UserModel {
-  final String id;
-  final String email;
+import 'package:mongo_dart/mongo_dart.dart';
+
+class User {
+  final ObjectId id;
   final String name;
-  final String role; // admin, evaluator, owner
+  final String email;
+  final String password;
+  final String role; // 'admin', 'evaluator', 'owner'
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  UserModel({
+  User({
     required this.id,
-    required this.email,
     required this.name,
+    required this.email,
+    required this.password,
     required this.role,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  // Create a UserModel from JSON
-  factory UserModel.fromJson(Map<String, dynamic> json) {
-    return UserModel(
-      id: json['id'] ?? '',
-      email: json['email'] ?? '',
-      name: json['name'] ?? '',
-      role: json['role'] ?? '',
-      createdAt: json['createdAt'] != null 
-        ? DateTime.parse(json['createdAt']) 
-        : DateTime.now(),
-      updatedAt: json['updatedAt'] != null 
-        ? DateTime.parse(json['updatedAt']) 
-        : DateTime.now(),
-    );
-  }
-
-  // Convert UserModel to JSON for storage
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
-      'id': id,
-      'email': email,
+      '_id': id,
       'name': name,
+      'email': email,
+      'password': password,
       'role': role,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
     };
   }
 
-  // Create a copy of UserModel with updated fields
-  UserModel copyWith({
-    String? name,
-    String? role,
-  }) {
-    return UserModel(
-      id: this.id,
-      email: this.email,
-      name: name ?? this.name,
-      role: role ?? this.role,
-      createdAt: this.createdAt,
-      updatedAt: DateTime.now(),
+  factory User.fromMap(Map<String, dynamic> map) {
+    return User(
+      id: map['_id'],
+      name: map['name'],
+      email: map['email'],
+      password: map['password'],
+      role: map['role'],
+      createdAt: map['createdAt'],
+      updatedAt: map['updatedAt'],
     );
   }
 }

@@ -55,6 +55,49 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
     await Printing.layoutPdf(onLayout: (format) async => pdf.save());
   }
 
+  Color _getFinalColor(String classificacao) {
+    switch (classificacao) {
+      case 'Preservada':
+        return Colors.green;
+      case 'Perturbada':
+        return Colors.amber;
+      case 'Degradada':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getHidroColor(String classificacao) {
+    switch (classificacao) {
+      case 'Ótimo':
+        return const Color(0xFF00E676);
+      case 'Bom':
+        return Colors.green;
+      case 'Razoável':
+        return Colors.yellow;
+      case 'Ruim':
+        return Colors.orange;
+      case 'Péssimo':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Color _getRiskColor(String classificacao) {
+    switch (classificacao) {
+      case 'Baixo':
+        return Colors.green;
+      case 'Médio':
+        return Colors.amber;
+      case 'Alto':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,11 +165,42 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
                 ],
               ),
               const SizedBox(height: 24),
+              Card(
+                color: Colors.grey[100],
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Classificações Intermediárias', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.water_drop, color: _getHidroColor(_getHidroClass()), size: 20),
+                          const SizedBox(width: 8),
+                          Text('Avaliação Hidroambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(_getHidroClass(), style: TextStyle(color: _getHidroColor(_getHidroClass()), fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.warning, color: _getRiskColor(_getRiskClass()), size: 20),
+                          const SizedBox(width: 8),
+                          Text('Risco Ambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(_getRiskClass(), style: TextStyle(color: _getRiskColor(_getRiskClass()), fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               Row(
                 children: [
-                  const Icon(Icons.circle, color: Colors.green, size: 18),
+                  Icon(Icons.circle, color: _getFinalColor(widget.classification), size: 18),
                   const SizedBox(width: 8),
-                  Text('Classificação: ${widget.classification}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Classificação Final: ${widget.classification}', style: TextStyle(fontWeight: FontWeight.bold, color: _getFinalColor(widget.classification), fontSize: 18)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -224,5 +298,22 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
         ),
       ),
     );
+  }
+
+  String _getHidroClass() {
+    final total = widget.assessmentData['hydroEnvironmentalTotal'] ?? 0;
+    if (total >= 31) return 'Ótimo';
+    if (total >= 28) return 'Bom';
+    if (total >= 25) return 'Razoável';
+    if (total >= 22) return 'Ruim';
+    return 'Péssimo';
+  }
+
+  String _getRiskClass() {
+    final total = widget.assessmentData['riskTotal'] ?? 0;
+    if (total >= 14 && total <= 21) return 'Baixo';
+    if (total >= 22 && total <= 31) return 'Médio';
+    if (total >= 32 && total <= 42) return 'Alto';
+    return 'Indefinido';
   }
 } 

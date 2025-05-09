@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/spring_assessment_model.dart';
+import 'package:mongo_dart/mongo_dart.dart';
+import 'package:agua_viva/config/mongodb_config.dart';
+import 'package:agua_viva/models/assessment_model.dart';
 
 class AssessmentService {
   // Storage keys
@@ -688,5 +691,101 @@ class AssessmentService {
   void dispose() {
     _springsStreamController.close();
     _assessmentsStreamController.close();
+  }
+
+  static const String collectionName = 'assessments';
+
+  // Criar nova avaliação
+  static Future<SpringAssessment> createAssessment(SpringAssessment assessment) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    await collection.insert(assessment.toMap());
+    return assessment;
+  }
+
+  // Buscar avaliação por ID
+  static Future<SpringAssessment?> getAssessmentById(ObjectId id) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    final assessmentMap = await collection.findOne(where.id(id));
+    if (assessmentMap == null) return null;
+    return SpringAssessment.fromMap(assessmentMap);
+  }
+
+  // Buscar avaliações por avaliador
+  static Future<List<SpringAssessment>> getAssessmentsByEvaluator(ObjectId evaluatorId) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    final assessments = await collection.find(where.eq('evaluatorId', evaluatorId)).toList();
+    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  }
+
+  // Buscar avaliações por nascente
+  static Future<List<SpringAssessment>> getAssessmentsBySpring(ObjectId springId) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    final assessments = await collection.find(where.eq('springId', springId)).toList();
+    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  }
+
+  // Atualizar avaliação
+  static Future<void> updateAssessment(SpringAssessment assessment) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    await collection.update(
+      where.id(assessment.id),
+      assessment.toMap(),
+    );
+  }
+
+  // Deletar avaliação
+  static Future<void> deleteAssessment(ObjectId id) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    await collection.remove(where.id(id));
+  }
+
+  // Listar todas as avaliações
+  static Future<List<SpringAssessment>> getAllAssessments() async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    final assessments = await collection.find().toList();
+    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  }
+
+  // Buscar avaliações por status
+  static Future<List<SpringAssessment>> getAssessmentsByStatus(String status) async {
+    final db = await MongoDBConfig.getDatabase();
+    final collection = db.collection(collectionName);
+
+    final assessments = await collection.find(where.eq('status', status)).toList();
+    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  }
+
+  // Buscar avaliações pendentes
+  static Future<List<SpringAssessment>> getPendingAssessments() async {
+    return getAssessmentsByStatus('pending');
+  }
+
+  // Buscar avaliações em rascunho
+  static Future<List<SpringAssessment>> getDraftAssessments() async {
+    return getAssessmentsByStatus('draft');
+  }
+
+  // Buscar avaliações aprovadas
+  static Future<List<SpringAssessment>> getApprovedAssessments() async {
+    return getAssessmentsByStatus('approved');
+  }
+
+  // Buscar avaliações rejeitadas
+  static Future<List<SpringAssessment>> getRejectedAssessments() async {
+    return getAssessmentsByStatus('rejected');
   }
 }

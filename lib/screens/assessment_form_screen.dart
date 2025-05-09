@@ -242,6 +242,35 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     return _hydroEnvironmentalScores.values.fold(0, (sum, score) => sum + score);
   }
 
+  // Função para calcular o total de pontos de risco ambiental
+  int _calculateTotalRiskScore() {
+    final entorno = _surroundingConditions.values.fold(0, (a, b) => a + b);
+    final nascente = _springConditions.values.fold(0, (a, b) => a + b);
+    final impactos = _anthropicImpacts.values.fold(0, (a, b) => a + b);
+    return entorno + nascente + impactos;
+  }
+
+  // Função para classificar o risco ambiental
+  String _getRiskLevel(int score) {
+    if (score >= 14 && score <= 21) return 'Baixo';
+    if (score >= 22 && score <= 31) return 'Médio';
+    if (score >= 32 && score <= 42) return 'Alto';
+    return 'Indefinido';
+  }
+
+  Color _getRiskColor(String level) {
+    switch (level) {
+      case 'Baixo':
+        return Colors.green;
+      case 'Médio':
+        return Colors.amber;
+      case 'Alto':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Future<void> _saveAssessment(bool submit) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -366,7 +395,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         'surroundingConditions': _surroundingConditions,
         'springConditions': _springConditions,
         'anthropicImpacts': _anthropicImpacts,
-        'riskTotal': _anthropicImpacts.values.fold(0, (sum, score) => sum + score),
+        'riskTotal': _calculateTotalRiskScore(),
         'generalState': _generalState,
         'primaryUse': _primaryUse,
         'hasWaterAnalysis': _hasWaterAnalysis,
@@ -378,12 +407,14 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         'photoReferences': _photoReferences,
         'recommendations': _recommendations,
       };
-      final classification = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+      final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+      final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
+      final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => ReviewAndSubmitScreen(
             assessmentData: assessmentData,
-            classification: classification,
+            classification: classificacaoFinal,
           ),
         ),
       );
@@ -459,7 +490,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
                 'surroundingConditions': _surroundingConditions,
                 'springConditions': _springConditions,
                 'anthropicImpacts': _anthropicImpacts,
-                'riskTotal': _anthropicImpacts.values.fold(0, (sum, score) => sum + score),
+                'riskTotal': _calculateTotalRiskScore(),
                 'generalState': _generalState,
                 'primaryUse': _primaryUse,
                 'hasWaterAnalysis': _hasWaterAnalysis,
@@ -471,12 +502,14 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
                 'photoReferences': _photoReferences,
                 'recommendations': _recommendations,
               };
-              final classification = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+              final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+              final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
+              final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ReviewAndSubmitScreen(
                     assessmentData: assessmentData,
-                    classification: classification,
+                    classification: classificacaoFinal,
                   ),
                 ),
               );
@@ -1266,19 +1299,9 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   }
 
   Step _buildAnthropicImpactsStep() {
-    final totalScore = _anthropicImpacts.values.fold(0, (sum, score) => sum + score);
-    String riskClass = '';
-    Color riskColor = Colors.green;
-    if (totalScore <= 21) {
-      riskClass = 'Baixo';
-      riskColor = Colors.green;
-    } else if (totalScore <= 31) {
-      riskClass = 'Médio';
-      riskColor = Colors.amber;
-    } else {
-      riskClass = 'Alto';
-      riskColor = Colors.red;
-    }
+    final totalScore = _calculateTotalRiskScore();
+    final riskClass = _getRiskLevel(totalScore);
+    final riskColor = _getRiskColor(riskClass);
     return Step(
       title: const Text('Impactos Antrópicos e Ambientais'),
       content: Column(
@@ -1359,18 +1382,25 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             'pollutionSources',
             _anthropicImpacts,
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Pontuação Total: $totalScore/42',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Classe de Risco: $riskClass',
-            style: TextStyle(
-              fontSize: 16,
-              color: riskColor,
-              fontWeight: FontWeight.bold,
+          const SizedBox(height: 24),
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'Pontuação Total do Risco Ambiental:',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$totalScore',
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: riskColor),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Classificação: $riskClass',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: riskColor),
+                ),
+              ],
             ),
           ),
         ],
@@ -1416,12 +1446,63 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     );
   }
 
+  // Função para classificação final da nascente
+  String _getFinalClassification(String hidroambiental, String riscoAmbiental) {
+    final isHidroBom = hidroambiental == 'Ótimo' || hidroambiental == 'Bom';
+    final isRiscoBom = riscoAmbiental == 'Baixo';
+    if (isHidroBom && isRiscoBom) {
+      return 'Preservada';
+    } else if (isHidroBom || isRiscoBom) {
+      return 'Perturbada';
+    } else {
+      return 'Degradada';
+    }
+  }
+
   Step _buildFinalAssessmentStep() {
+    final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+    final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
+    final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
+    Color finalColor;
+    switch (classificacaoFinal) {
+      case 'Preservada':
+        finalColor = Colors.green;
+        break;
+      case 'Perturbada':
+        finalColor = Colors.amber;
+        break;
+      case 'Degradada':
+        finalColor = Colors.red;
+        break;
+      default:
+        finalColor = Colors.grey;
+    }
     return Step(
       title: const Text('Avaliação Final'),
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'Classificação Final da Nascente',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  classificacaoFinal,
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: finalColor),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Hidroambiental: $hidroClass | Risco Ambiental: $riscoClass',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text(
             'Estado Geral da Nascente',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),

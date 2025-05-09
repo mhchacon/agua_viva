@@ -1,0 +1,52 @@
+const mongoose = require('mongoose');
+
+const locationSchema = new mongoose.Schema({
+  latitude: { type: Number, required: true },
+  longitude: { type: Number, required: true },
+}, { _id: false });
+
+const assessmentSchema = new mongoose.Schema({
+  springId: { type: mongoose.Schema.Types.ObjectId, ref: 'Spring', required: true },
+  evaluatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, enum: ['draft', 'pending', 'approved', 'rejected'], default: 'draft' },
+  environmentalServices: [{ type: String }],
+  ownerName: { type: String, required: true },
+  hasCAR: { type: Boolean, required: true },
+  carNumber: { type: String },
+  location: { type: locationSchema, required: true },
+  altitude: { type: Number, required: true },
+  municipality: { type: String, required: true },
+  reference: { type: String, required: true },
+  hasAPP: { type: Boolean, required: true },
+  appStatus: { type: String, required: true },
+  hasWaterFlow: { type: Boolean, required: true },
+  hasWetlandVegetation: { type: Boolean, required: true },
+  hasFavorableTopography: { type: Boolean, required: true },
+  hasSoilSaturation: { type: Boolean, required: true },
+  springType: { type: String, required: true },
+  springCharacteristic: { type: String, required: true },
+  diffusePoints: { type: Number },
+  flowRegime: { type: String, required: true },
+  ownerResponse: { type: String },
+  informationSource: { type: String },
+  hydroEnvironmentalScores: { type: Map, of: Number },
+  hydroEnvironmentalTotal: { type: Number, required: true },
+  surroundingConditions: { type: Map, of: Number },
+  springConditions: { type: Map, of: Number },
+  anthropicImpacts: { type: Map, of: Number },
+  generalState: { type: String, required: true },
+  primaryUse: { type: String, required: true },
+  hasWaterAnalysis: { type: Boolean, required: true },
+  analysisDate: { type: Date },
+  analysisParameters: { type: String },
+  hasFlowRate: { type: Boolean, required: true },
+  flowRateValue: { type: Number },
+  flowRateDate: { type: Date },
+  photoReferences: [{ type: String }],
+  recommendations: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  submittedAt: { type: Date },
+});
+
+module.exports = mongoose.model('Assessment', assessmentSchema); 

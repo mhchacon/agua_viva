@@ -1,0 +1,128 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
+
+class ApiService {
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
+  ApiService._internal();
+
+  final String baseUrl = ApiConfig.baseUrl;
+  String? _authToken;
+
+  // Headers padrão
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+  };
+
+  // Autenticação
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: _headers,
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _authToken = data['token'];
+        return data;
+      } else {
+        throw Exception('Falha no login: ${response.body}');
+      }
+    } catch (e) {
+      throw Exception('Erro ao conectar com o servidor: $e');
+    }
+  }
+
+  // Usuários
+  Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/users'),
+      headers: _headers,
+      body: jsonEncode(userData),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> getUser(String id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/$id'),
+      headers: _headers,
+    );
+    return _handleResponse(response);
+  }
+
+  // Nascentes
+  Future<Map<String, dynamic>> createSpring(Map<String, dynamic> springData) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/springs'),
+      headers: _headers,
+      body: jsonEncode(springData),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getSprings() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/springs'),
+      headers: _headers,
+    );
+    return _handleListResponse(response);
+  }
+
+  // Avaliações
+  Future<Map<String, dynamic>> createAssessment(Map<String, dynamic> assessmentData) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/assessments'),
+      headers: _headers,
+      body: jsonEncode(assessmentData),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getAssessments() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/assessments'),
+      headers: _headers,
+    );
+    return _handleListResponse(response);
+  }
+
+  Future<Map<String, dynamic>> updateAssessment(String id, Map<String, dynamic> assessmentData) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/assessments/$id'),
+      headers: _headers,
+      body: jsonEncode(assessmentData),
+    );
+    return _handleResponse(response);
+  }
+
+  // Métodos auxiliares
+  Map<String, dynamic> _handleResponse(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Erro na requisição: ${response.body}');
+    }
+  }
+
+  List<Map<String, dynamic>> _handleListResponse(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Erro na requisição: ${response.body}');
+    }
+  }
+
+  // Logout
+  void logout() {
+    _authToken = null;
+  }
+} 

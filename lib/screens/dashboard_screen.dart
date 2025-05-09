@@ -19,9 +19,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final ReportService _reportService = ReportService();
-  String _filterStatus = 'all';
-  String _searchQuery = '';
 
   @override
   void initState() {
@@ -33,13 +30,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   int _getTabCount() {
     switch (widget.userRole) {
       case UserRole.admin:
-        return 3; // Dashboard, Mapa, Relatórios
+        return 3;
       case UserRole.evaluator:
-        return 2; // Minhas Avaliações, Novo Cadastro
+        return 2;
       case UserRole.owner:
-        return 2; // Minhas Nascentes, Status
-      default:
-        return 1;
+        return 2;
     }
   }
 
@@ -51,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    // Layout especial para Proprietário
     if (widget.userRole == UserRole.owner) {
       return Scaffold(
         appBar: AppBar(
@@ -66,9 +60,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             children: [
               Icon(Icons.water_drop, size: 80, color: AppTheme.primaryColor),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Olá! Aqui você pode acompanhar suas nascentes.',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
@@ -112,7 +106,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         ),
       );
     }
-    // Layout com abas para outros perfis
     return Scaffold(
       appBar: AppBar(
         title: Text('Dashboard - ${_getRoleTitle()}'),
@@ -135,34 +128,45 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         controller: _tabController,
         children: _buildTabViews(),
       ),
+      floatingActionButton: widget.userRole == UserRole.evaluator
+          ? FloatingActionButton.extended(
+              icon: const Icon(Icons.add),
+              label: const Text('Novo Cadastro'),
+              backgroundColor: AppTheme.primaryColor,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const AssessmentFormScreen(),
+                  ),
+                );
+              },
+            )
+          : null,
     );
   }
 
   List<Widget> _buildTabs() {
     switch (widget.userRole) {
       case UserRole.admin:
-        return [
-          const Tab(text: 'Cadastros', icon: Icon(Icons.dashboard_rounded)),
-          const Tab(text: 'Mapa', icon: Icon(Icons.map_rounded)),
-          const Tab(text: 'Relatórios', icon: Icon(Icons.summarize_rounded)),
+        return const [
+          Tab(text: 'Cadastros', icon: Icon(Icons.dashboard_rounded)),
+          Tab(text: 'Mapa', icon: Icon(Icons.map_rounded)),
+          Tab(text: 'Relatórios', icon: Icon(Icons.summarize_rounded)),
         ];
       case UserRole.evaluator:
-        return [
-          const Tab(text: 'Minhas Avaliações', icon: Icon(Icons.assessment_rounded)),
-          const Tab(text: 'Novo Cadastro', icon: Icon(Icons.add_circle_rounded)),
+        return const [
+          Tab(text: 'Minhas Avaliações', icon: Icon(Icons.assessment_rounded)),
+          Tab(text: 'Novo Cadastro', icon: Icon(Icons.add_circle_rounded)),
         ];
       case UserRole.owner:
-        return [
-          const Tab(text: 'Minhas Nascentes', icon: Icon(Icons.water_drop_rounded)),
-          const Tab(text: 'Status', icon: Icon(Icons.info_rounded)),
+        return const [
+          Tab(text: 'Minhas Nascentes', icon: Icon(Icons.water_drop_rounded)),
+          Tab(text: 'Status', icon: Icon(Icons.info_rounded)),
         ];
-      default:
-        return [const Tab(text: 'Dashboard')];
     }
   }
 
   List<Widget> _buildTabViews() {
-    // Aqui você pode implementar o conteúdo de cada aba conforme o perfil
     switch (widget.userRole) {
       case UserRole.admin:
         return [
@@ -180,32 +184,29 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           _buildOwnerSprings(),
           _buildOwnerStatusView(),
         ];
-      default:
-        return [Container()];
     }
   }
 
-  // Métodos de exemplo para cada aba (substitua pelo seu conteúdo real)
   Widget _buildAdminDashboard() {
-    return Center(child: Text('Painel do Administrador'));
+    return const Center(child: Text('Painel do Administrador'));
   }
   Widget _buildMapView() {
-    return Center(child: Text('Mapa de Nascentes'));
+    return const Center(child: Text('Mapa de Nascentes'));
   }
   Widget _buildReportsView() {
-    return Center(child: Text('Relatórios'));
+    return const Center(child: Text('Relatórios'));
   }
   Widget _buildEvaluatorAssessments() {
-    return Center(child: Text('Minhas Avaliações'));
+    return const Center(child: Text('Minhas Avaliações'));
   }
   Widget _buildNewAssessmentView() {
-    return Center(child: Text('Novo Cadastro'));
+    return const Center(child: Text('Novo Cadastro'));
   }
   Widget _buildOwnerSprings() {
-    return Center(child: Text('Minhas Nascentes'));
+    return const Center(child: Text('Minhas Nascentes'));
   }
   Widget _buildOwnerStatusView() {
-    return Center(child: Text('Status das Nascentes'));
+    return const Center(child: Text('Status das Nascentes'));
   }
 
   String _getRoleTitle() {
