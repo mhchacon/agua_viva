@@ -7,6 +7,7 @@ import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/cadastro_proprietario_screen.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
           create: (_) => AuthService(),
         ),
         Provider<AssessmentService>(
-          create: (_) => AssessmentService(),
+          create: (_) => AssessmentService(ApiService()),
           dispose: (_, service) => service.dispose(),
         ),
       ],
@@ -68,7 +69,7 @@ class MyApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         home: const RoleSelectionScreen(),
         debugShowCheckedModeBanner: false,
-        localizationsDelegates: const [
+        localizationsDelegates: [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,

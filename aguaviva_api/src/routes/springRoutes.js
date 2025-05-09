@@ -7,5 +7,6 @@ router.get('/', springController.getAllSprings);
 router.get('/:id', springController.getSpringById);
 router.put('/:id', springController.updateSpring);
 router.delete('/:id', springController.deleteSpring);
+router.get('/owner/:ownerId', springController.getSpringsByOwner);
 
 module.exports = router; 

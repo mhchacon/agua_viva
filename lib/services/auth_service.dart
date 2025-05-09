@@ -143,6 +143,18 @@ class AuthService extends ChangeNotifier {
     }).toList();
   }
   
+  // Get current user data
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    if (!_isAuthenticated) return null;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('currentUser');
+    
+    if (userData == null) return null;
+    
+    return jsonDecode(userData);
+  }
+  
   // Clean up resources
   void dispose() {
     _authStateController.close();

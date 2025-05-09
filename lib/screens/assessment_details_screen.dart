@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:agua_viva/models/spring_assessment_model.dart';
+import 'package:agua_viva/models/assessment_model.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/services/report_service.dart';
 import 'package:agua_viva/services/auth_service.dart';
@@ -11,7 +11,7 @@ class AssessmentDetailsScreen extends StatefulWidget {
   const AssessmentDetailsScreen({Key? key, required this.assessmentId}) : super(key: key);
 
   @override
-  _AssessmentDetailsScreenState createState() => _AssessmentDetailsScreenState();
+  State<AssessmentDetailsScreen> createState() => _AssessmentDetailsScreenState();
 }
 
 class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
@@ -41,6 +41,8 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
   }
 
   Future<void> _loadAssessment() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
@@ -48,31 +50,39 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
     try {
       final assessment = await _assessmentService.getAssessmentById(widget.assessmentId);
       
+      if (!mounted) return;
+      
       if (assessment != null) {
         setState(() {
-          _assessment = assessment;
+          _assessment = assessment as SpringAssessment;
           _selectedStatus = assessment.status;
         });
       }
     } catch (e) {
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao carregar avaliação: $e')),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _updateStatus() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
 
     try {
       await _assessmentService.updateAssessmentStatus(
-        widget.assessmentId,
+        _assessment!.idString,
         _selectedStatus,
         _justificationController.text.isEmpty ? null : _justificationController.text,
       );
@@ -106,6 +116,8 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
   Future<void> _generateReport() async {
     if (_assessment == null) return;
 
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
@@ -189,15 +201,15 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                         title: _assessment!.hasCAR ? 'Sim' : 'Não',
                         subtitle: 'Área com CAR',
                         icon: Icons.assignment,
-                        iconColor: _assessment!.hasCAR ? Colors.green : Colors.red,
+                        iconColor: _assessment!.hasCAR ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
                       ),
                       _buildDetailCard(
                         title: _assessment!.hasAPP ? _assessment!.appStatus : 'Não possui',
                         subtitle: 'Área de APP',
                         icon: Icons.park,
                         iconColor: _assessment!.hasAPP 
-                            ? (_assessment!.appStatus == 'Bom' ? Colors.green : Colors.orange) 
-                            : Colors.red,
+                            ? (_assessment!.appStatus == 'Bom' ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2)) 
+                            : Colors.red.withValues(alpha: 0.2),
                       ),
 
                       const SizedBox(height: 16),
@@ -249,10 +261,10 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withOpacity(0.1),
+                          color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withOpacity(0.3),
+                            color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Column(
@@ -448,9 +460,9 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
@@ -481,7 +493,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -502,7 +514,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -530,7 +542,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -538,7 +550,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
           children: [
             Icon(
               value ? Icons.check_circle : Icons.cancel,
-              color: value ? Colors.green : Colors.red,
+              color: value ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
             ),
             const SizedBox(width: 12),
             Expanded(

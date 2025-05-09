@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'package:agua_viva/utils/logger.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -8,6 +9,7 @@ class ApiService {
   ApiService._internal();
 
   final String baseUrl = ApiConfig.baseUrl;
+  final _logger = AppLogger();
   String? _authToken;
 
   // Headers padrão
@@ -76,6 +78,39 @@ class ApiService {
     return _handleListResponse(response);
   }
 
+  Future<Map<String, dynamic>> getSpring(String id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/springs/$id'),
+      headers: _headers,
+    );
+    return _handleResponse(response);
+  }
+
+  Future<Map<String, dynamic>> updateSpring(String id, Map<String, dynamic> springData) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/springs/$id'),
+      headers: _headers,
+      body: jsonEncode(springData),
+    );
+    return _handleResponse(response);
+  }
+
+  Future<void> deleteSpring(String id) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/springs/$id'),
+      headers: _headers,
+    );
+    _handleResponse(response);
+  }
+
+  Future<List<Map<String, dynamic>>> getSpringsByOwner(String ownerId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/springs/owner/$ownerId'),
+      headers: _headers,
+    );
+    return _handleListResponse(response);
+  }
+
   // Avaliações
   Future<Map<String, dynamic>> createAssessment(Map<String, dynamic> assessmentData) async {
     final response = await http.post(
@@ -124,5 +159,59 @@ class ApiService {
   // Logout
   void logout() {
     _authToken = null;
+  }
+
+  Future<dynamic> get(String endpoint) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+      );
+      return _handleResponse(response);
+    } catch (e) {
+      _logger.error('Erro na requisição GET: $e');
+      rethrow;
+    }
+  }
+
+  Future<dynamic> post(String endpoint, dynamic data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+        body: jsonEncode(data),
+      );
+      return _handleResponse(response);
+    } catch (e) {
+      _logger.error('Erro na requisição POST: $e');
+      rethrow;
+    }
+  }
+
+  Future<dynamic> put(String endpoint, dynamic data) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+        body: jsonEncode(data),
+      );
+      return _handleResponse(response);
+    } catch (e) {
+      _logger.error('Erro na requisição PUT: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> delete(String endpoint) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: _headers,
+      );
+      _handleResponse(response);
+    } catch (e) {
+      _logger.error('Erro na requisição DELETE: $e');
+      rethrow;
+    }
   }
 } 

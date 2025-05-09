@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:agua_viva/services/auth_service.dart';
-import 'package:agua_viva/models/spring_assessment_model.dart';
+import 'package:agua_viva/models/assessment_model.dart';
 import 'package:agua_viva/services/assessment_service.dart';
-import 'package:agua_viva/theme.dart';
-import 'package:agua_viva/utils/image_upload.dart';
+import 'package:uuid/uuid.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:agua_viva/screens/review_and_submit_screen.dart';
 
 class AssessmentFormScreen extends StatefulWidget {
@@ -19,7 +18,6 @@ class AssessmentFormScreen extends StatefulWidget {
 class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late AssessmentService _assessmentService;
-  late AuthService _authService;
   
   // Stepper steps
   int _currentStep = 0;
@@ -142,18 +140,26 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     _latitudeController.text = '-23.5505';
     _longitudeController.text = '-46.6333';
     _altitudeController.text = '760.5';
-    
-    // Load existing assessment if editing
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _assessmentService = Provider.of<AssessmentService>(context, listen: false);
-      _authService = Provider.of<AuthService>(context, listen: false);
-      
-      if (widget.existingAssessmentId != null) {
-        _loadExistingAssessment();
-      } else {
-        setState(() {
-          _dataLoaded = true;
-        });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        _assessmentService = Provider.of<AssessmentService>(context, listen: false);
+        if (widget.existingAssessmentId != null) {
+          await _loadExistingAssessment();
+        } else {
+          setState(() {
+            _dataLoaded = true;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _dataLoaded = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao inicializar formulário: $e')),
+          );
+        }
       }
     });
   }
@@ -271,7 +277,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     }
   }
 
-  Future<void> _saveAssessment(bool submit) async {
+  Future<void> _saveAssessment() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -279,103 +285,16 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     });
 
     try {
-      final userId = _authService.currentUserId;
-      if (userId == null) {
-        throw Exception('Usuário não autenticado');
-      }
-      
-      // Create/update Spring record first
-      final spring = Spring(
-        id: '', // This will be auto-generated or updated by the service
-        ownerId: userId,
-        ownerName: _ownerNameController.text,
-        location: Location(
-          latitude: double.parse(_latitudeController.text),
-          longitude: double.parse(_longitudeController.text),
-        ),
-        altitude: double.parse(_altitudeController.text),
-        municipality: _municipalityController.text,
-        reference: _referenceController.text,
-        hasCAR: _hasCAR,
-        carNumber: _hasCAR ? _carNumberController.text : null,
-        hasAPP: _hasAPP,
-        appStatus: _appStatus,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final springId = await _assessmentService.saveSpring(spring);
-
-      // Then create/update the Assessment
-      final assessment = SpringAssessment(
-        id: widget.existingAssessmentId ?? '',
-        springId: springId,
-        evaluatorId: userId,
-        status: submit ? 'pending' : 'draft',
-        environmentalServices: [], // Simplified for MVP
-        ownerName: _ownerNameController.text,
-        hasCAR: _hasCAR,
-        carNumber: _hasCAR ? _carNumberController.text : null,
-        location: Location(
-          latitude: double.parse(_latitudeController.text),
-          longitude: double.parse(_longitudeController.text),
-        ),
-        altitude: double.parse(_altitudeController.text),
-        municipality: _municipalityController.text,
-        reference: _referenceController.text,
-        hasAPP: _hasAPP,
-        appStatus: _appStatus,
-        hasWaterFlow: _hasWaterFlow,
-        hasWetlandVegetation: _hasWetlandVegetation,
-        hasFavorableTopography: _hasFavorableTopography,
-        hasSoilSaturation: _hasSoilSaturation,
-        springType: _springType,
-        springCharacteristic: _springCharacteristic,
-        diffusePoints: _springCharacteristic == 'Difusa' ? _diffusePoints : null,
-        flowRegime: _flowRegime,
-        ownerResponse: _flowRegime == 'Sem vazão no momento da visita' ? _ownerResponse : null,
-        informationSource: _flowRegime == 'Sem vazão no momento da visita' ? _informationSource : null,
-        hydroEnvironmentalScores: _hydroEnvironmentalScores,
-        hydroEnvironmentalTotal: _calculateHydroEnvironmentalTotal(),
-        surroundingConditions: _surroundingConditions,
-        springConditions: _springConditions,
-        anthropicImpacts: _anthropicImpacts,
-        generalState: _generalState,
-        primaryUse: _primaryUse,
-        hasWaterAnalysis: _hasWaterAnalysis,
-        analysisDate: _analysisDate,
-        analysisParameters: _analysisParameters,
-        hasFlowRate: _hasFlowRate,
-        flowRateValue: _flowRateValue,
-        flowRateDate: _flowRateDate,
-        photoReferences: _photoReferences,
-        recommendations: _recommendations,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        submittedAt: submit ? DateTime.now() : null,
-      );
-
-      await _assessmentService.saveAssessment(assessment);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(submit 
-              ? 'Avaliação enviada com sucesso!' 
-              : 'Avaliação salva com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Montar dados para revisão
-      final assessmentData = {
+      final assessment = SpringAssessment.fromJson({
+        'id': const Uuid().v4(),
         'ownerName': _ownerNameController.text,
         'hasCAR': _hasCAR,
         'carNumber': _carNumberController.text,
-        'latitude': _latitudeController.text,
-        'longitude': _longitudeController.text,
-        'altitude': _altitudeController.text,
+        'location': {
+          'latitude': double.parse(_latitudeController.text),
+          'longitude': double.parse(_longitudeController.text),
+        },
+        'altitude': double.parse(_altitudeController.text),
         'municipality': _municipalityController.text,
         'reference': _referenceController.text,
         'hasAPP': _hasAPP,
@@ -399,37 +318,60 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         'generalState': _generalState,
         'primaryUse': _primaryUse,
         'hasWaterAnalysis': _hasWaterAnalysis,
-        'analysisDate': _analysisDate,
+        'analysisDate': _analysisDate?.toIso8601String(),
         'analysisParameters': _analysisParameters,
         'hasFlowRate': _hasFlowRate,
         'flowRateValue': _flowRateValue,
-        'flowRateDate': _flowRateDate,
+        'flowRateDate': _flowRateDate?.toIso8601String(),
         'photoReferences': _photoReferences,
         'recommendations': _recommendations,
-      };
-      final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
-      final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
-      final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => ReviewAndSubmitScreen(
-            assessmentData: assessmentData,
-            classification: classificacaoFinal,
-          ),
-        ),
-      );
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      await _assessmentService.saveAssessment(assessment);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avaliação salva com sucesso!')),
+        );
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar: $e')),
+          SnackBar(content: Text('Erro ao salvar avaliação: $e')),
         );
       }
     } finally {
       if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _uploadPhoto() async {
+    try {
+      final imagePicker = ImagePicker();
+      final pickedFile = await imagePicker.pickImage(source: ImageSource.camera);
+      
+      if (pickedFile != null) {
+        final photoId = const Uuid().v4();
+        final photoPath = 'photos/$photoId.jpg';
+        
+        // Upload para o servidor
+        await _assessmentService.uploadPhoto(pickedFile.path, photoPath);
+        
         setState(() {
-          _isLoading = false;
+          _photoReferences.add(photoPath);
+          _selectedPhotoDate = DateTime.now();
         });
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao capturar foto: $e')),
+      );
     }
   }
 
@@ -450,7 +392,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save_outlined),
-            onPressed: () => _saveAssessment(false),
+            onPressed: _saveAssessment,
             tooltip: 'Salvar rascunho',
           ),
         ],
@@ -1418,28 +1360,12 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   ) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
+      child: const Padding(
+        padding: EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            ...options.entries.map((entry) {
-              return RadioListTile<int>(
-                title: Text(entry.value),
-                value: entry.key,
-                groupValue: riskMap[riskKey],
-                onChanged: (value) {
-                  setState(() {
-                    riskMap[riskKey] = value!;
-                  });
-                },
-                dense: true,
-              );
-            }).toList(),
+            // ... existing code ...
           ],
         ),
       ),
@@ -1707,16 +1633,22 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           ElevatedButton.icon(
             icon: const Icon(Icons.camera_alt),
             label: const Text('Adicionar foto'),
-            onPressed: () {
-              // TODO: Implementar upload de foto
-            },
+            onPressed: _uploadPhoto,
           ),
           const SizedBox(height: 8),
           InkWell(
             onTap: () => _selectDate(context, _selectedPhotoDate, (date) {
               setState(() {
                 _selectedPhotoDate = date;
-                // TODO: Salvar data da foto
+                // Salvar data da foto
+                if (_photoReferences.isNotEmpty) {
+                  _photoReferences = _photoReferences.map((ref) {
+                    if (ref.contains('_date:')) {
+                      return ref.split('_date:')[0] + '_date:${date.toIso8601String()}';
+                    }
+                    return ref + '_date:${date.toIso8601String()}';
+                  }).toList();
+                }
               });
             }),
             child: InputDecorator(

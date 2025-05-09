@@ -1,3 +1,7 @@
+import 'package:uuid/uuid.dart';
+import 'location.dart';
+import 'package:mongo_dart/mongo_dart.dart';
+
 class Location {
   final double latitude;
   final double longitude;
@@ -20,69 +24,45 @@ class Location {
 }
 
 class SpringAssessment {
-  final String id;
-  final String springId;
-  final String evaluatorId;
-  final String status; // pending, approved, rejected
+  final ObjectId id;
+  final ObjectId springId;
+  final ObjectId evaluatorId;
+  final String status; // 'draft', 'pending', 'approved', 'rejected'
   final List<String> environmentalServices;
-  
-  // Owner information
   final String ownerName;
-  final bool hasCAR; // Cadastro Ambiental Rural
+  final bool hasCAR;
   final String? carNumber;
-  
-  // Location
   final Location location;
   final double altitude;
   final String municipality;
   final String reference;
-  
-  // APP (Área de Preservação Permanente)
   final bool hasAPP;
-  final String appStatus; // Bom, Ruim, Não tem
-  
-  // Spring Analysis
+  final String appStatus;
   final bool hasWaterFlow;
   final bool hasWetlandVegetation;
   final bool hasFavorableTopography;
   final bool hasSoilSaturation;
-  
-  // Spring Type
-  final String springType; // Encosta/Eluvial, Depressão, Anticlinal
-  final String springCharacteristic; // Pontual, Difusa
-  final int? diffusePoints; // Number of points if diffuse
-  final String flowRegime; // Perene, Intermitente, Efêmera, Sem vazão
-  final String? ownerResponse; // If no flow at visit time
-  final String? informationSource; // Direct observation or owner info
-  
-  // Environmental Assessment
-  final Map<String, int> hydroEnvironmentalScores; // Parameters with scores
-  final int hydroEnvironmentalTotal; // Sum of scores
-  
-  // Risk Assessment
+  final String springType;
+  final String springCharacteristic;
+  final int? diffusePoints;
+  final String flowRegime;
+  final String? ownerResponse;
+  final String? informationSource;
+  final Map<String, int> hydroEnvironmentalScores;
+  final int hydroEnvironmentalTotal;
   final Map<String, int> surroundingConditions;
   final Map<String, int> springConditions;
   final Map<String, int> anthropicImpacts;
-  
-  // Final Assessment
-  final String generalState; // Preservada, Perturbada, Degradada
-  final String primaryUse; // Abastecimento humano, Agricultura, etc.
-  
-  // Water Quality
+  final String generalState;
+  final String primaryUse;
   final bool hasWaterAnalysis;
   final DateTime? analysisDate;
   final String? analysisParameters;
-  
-  // Flow Rate
   final bool hasFlowRate;
   final double? flowRateValue;
   final DateTime? flowRateDate;
-  
-  // Photos and Recommendations
   final List<String> photoReferences;
   final String? recommendations;
-  
-  // Timestamps
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? submittedAt;
@@ -132,62 +112,16 @@ class SpringAssessment {
     this.submittedAt,
   });
 
-  // Create a SpringAssessment from JSON
-  factory SpringAssessment.fromJson(Map<String, dynamic> json) {
-    return SpringAssessment(
-      id: json['id'] ?? '',
-      springId: json['springId'] ?? '',
-      evaluatorId: json['evaluatorId'] ?? '',
-      status: json['status'] ?? 'pending',
-      environmentalServices: List<String>.from(json['environmentalServices'] ?? []),
-      ownerName: json['ownerName'] ?? '',
-      hasCAR: json['hasCAR'] ?? false,
-      carNumber: json['carNumber'],
-      location: json['location'] != null 
-        ? Location.fromJson(json['location']) 
-        : Location(latitude: 0, longitude: 0),
-      altitude: (json['altitude'] ?? 0).toDouble(),
-      municipality: json['municipality'] ?? '',
-      reference: json['reference'] ?? '',
-      hasAPP: json['hasAPP'] ?? false,
-      appStatus: json['appStatus'] ?? '',
-      hasWaterFlow: json['hasWaterFlow'] ?? false,
-      hasWetlandVegetation: json['hasWetlandVegetation'] ?? false,
-      hasFavorableTopography: json['hasFavorableTopography'] ?? false,
-      hasSoilSaturation: json['hasSoilSaturation'] ?? false,
-      springType: json['springType'] ?? '',
-      springCharacteristic: json['springCharacteristic'] ?? '',
-      diffusePoints: json['diffusePoints'],
-      flowRegime: json['flowRegime'] ?? '',
-      ownerResponse: json['ownerResponse'],
-      informationSource: json['informationSource'],
-      hydroEnvironmentalScores: Map<String, int>.from(json['hydroEnvironmentalScores'] ?? {}),
-      hydroEnvironmentalTotal: json['hydroEnvironmentalTotal'] ?? 0,
-      surroundingConditions: Map<String, int>.from(json['surroundingConditions'] ?? {}),
-      springConditions: Map<String, int>.from(json['springConditions'] ?? {}),
-      anthropicImpacts: Map<String, int>.from(json['anthropicImpacts'] ?? {}),
-      generalState: json['generalState'] ?? '',
-      primaryUse: json['primaryUse'] ?? '',
-      hasWaterAnalysis: json['hasWaterAnalysis'] ?? false,
-      analysisDate: json['analysisDate'] != null ? DateTime.parse(json['analysisDate']) : null,
-      analysisParameters: json['analysisParameters'],
-      hasFlowRate: json['hasFlowRate'] ?? false,
-      flowRateValue: json['flowRateValue']?.toDouble(),
-      flowRateDate: json['flowRateDate'] != null ? DateTime.parse(json['flowRateDate']) : null,
-      photoReferences: List<String>.from(json['photoReferences'] ?? []),
-      recommendations: json['recommendations'],
-      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
-      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
-      submittedAt: json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null,
-    );
-  }
+  // Getters para IDs como String
+  String get idString => id.toHexString();
+  String get springIdString => springId.toHexString();
+  String get evaluatorIdString => evaluatorId.toHexString();
 
-  // Convert SpringAssessment to JSON for storage
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
-      'springId': springId,
-      'evaluatorId': evaluatorId,
+      '_id': id.toHexString(),
+      'springId': springId.toHexString(),
+      'evaluatorId': evaluatorId.toHexString(),
       'status': status,
       'environmentalServices': environmentalServices,
       'ownerName': ownerName,
@@ -228,6 +162,144 @@ class SpringAssessment {
       'updatedAt': updatedAt.toIso8601String(),
       'submittedAt': submittedAt?.toIso8601String(),
     };
+  }
+
+  factory SpringAssessment.fromJson(Map<String, dynamic> json) {
+    return SpringAssessment(
+      id: json['_id'] is String ? ObjectId.parse(json['_id']) : json['_id'],
+      springId: json['springId'] is String ? ObjectId.parse(json['springId']) : json['springId'],
+      evaluatorId: json['evaluatorId'] is String ? ObjectId.parse(json['evaluatorId']) : json['evaluatorId'],
+      status: json['status'],
+      environmentalServices: List<String>.from(json['environmentalServices']),
+      ownerName: json['ownerName'],
+      hasCAR: json['hasCAR'],
+      carNumber: json['carNumber'],
+      location: Location.fromJson(json['location']),
+      altitude: json['altitude'].toDouble(),
+      municipality: json['municipality'],
+      reference: json['reference'],
+      hasAPP: json['hasAPP'],
+      appStatus: json['appStatus'],
+      hasWaterFlow: json['hasWaterFlow'],
+      hasWetlandVegetation: json['hasWetlandVegetation'],
+      hasFavorableTopography: json['hasFavorableTopography'],
+      hasSoilSaturation: json['hasSoilSaturation'],
+      springType: json['springType'],
+      springCharacteristic: json['springCharacteristic'],
+      diffusePoints: json['diffusePoints'],
+      flowRegime: json['flowRegime'],
+      ownerResponse: json['ownerResponse'],
+      informationSource: json['informationSource'],
+      hydroEnvironmentalScores: Map<String, int>.from(json['hydroEnvironmentalScores']),
+      hydroEnvironmentalTotal: json['hydroEnvironmentalTotal'],
+      surroundingConditions: Map<String, int>.from(json['surroundingConditions']),
+      springConditions: Map<String, int>.from(json['springConditions']),
+      anthropicImpacts: Map<String, int>.from(json['anthropicImpacts']),
+      generalState: json['generalState'],
+      primaryUse: json['primaryUse'],
+      hasWaterAnalysis: json['hasWaterAnalysis'],
+      analysisDate: json['analysisDate'] != null ? DateTime.parse(json['analysisDate']) : null,
+      analysisParameters: json['analysisParameters'],
+      hasFlowRate: json['hasFlowRate'],
+      flowRateValue: json['flowRateValue']?.toDouble(),
+      flowRateDate: json['flowRateDate'] != null ? DateTime.parse(json['flowRateDate']) : null,
+      photoReferences: List<String>.from(json['photoReferences']),
+      recommendations: json['recommendations'],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+      submittedAt: json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null,
+    );
+  }
+
+  // Método para criar uma nova avaliação com IDs como String
+  factory SpringAssessment.fromStringIds({
+    required String id,
+    required String springId,
+    required String evaluatorId,
+    required String status,
+    required List<String> environmentalServices,
+    required String ownerName,
+    required bool hasCAR,
+    String? carNumber,
+    required Location location,
+    required double altitude,
+    required String municipality,
+    required String reference,
+    required bool hasAPP,
+    required String appStatus,
+    required bool hasWaterFlow,
+    required bool hasWetlandVegetation,
+    required bool hasFavorableTopography,
+    required bool hasSoilSaturation,
+    required String springType,
+    required String springCharacteristic,
+    int? diffusePoints,
+    required String flowRegime,
+    String? ownerResponse,
+    String? informationSource,
+    required Map<String, int> hydroEnvironmentalScores,
+    required int hydroEnvironmentalTotal,
+    required Map<String, int> surroundingConditions,
+    required Map<String, int> springConditions,
+    required Map<String, int> anthropicImpacts,
+    required String generalState,
+    required String primaryUse,
+    required bool hasWaterAnalysis,
+    DateTime? analysisDate,
+    String? analysisParameters,
+    required bool hasFlowRate,
+    double? flowRateValue,
+    DateTime? flowRateDate,
+    required List<String> photoReferences,
+    String? recommendations,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    DateTime? submittedAt,
+  }) {
+    return SpringAssessment(
+      id: ObjectId.parse(id),
+      springId: ObjectId.parse(springId),
+      evaluatorId: ObjectId.parse(evaluatorId),
+      status: status,
+      environmentalServices: environmentalServices,
+      ownerName: ownerName,
+      hasCAR: hasCAR,
+      carNumber: carNumber,
+      location: location,
+      altitude: altitude,
+      municipality: municipality,
+      reference: reference,
+      hasAPP: hasAPP,
+      appStatus: appStatus,
+      hasWaterFlow: hasWaterFlow,
+      hasWetlandVegetation: hasWetlandVegetation,
+      hasFavorableTopography: hasFavorableTopography,
+      hasSoilSaturation: hasSoilSaturation,
+      springType: springType,
+      springCharacteristic: springCharacteristic,
+      diffusePoints: diffusePoints,
+      flowRegime: flowRegime,
+      ownerResponse: ownerResponse,
+      informationSource: informationSource,
+      hydroEnvironmentalScores: hydroEnvironmentalScores,
+      hydroEnvironmentalTotal: hydroEnvironmentalTotal,
+      surroundingConditions: surroundingConditions,
+      springConditions: springConditions,
+      anthropicImpacts: anthropicImpacts,
+      generalState: generalState,
+      primaryUse: primaryUse,
+      hasWaterAnalysis: hasWaterAnalysis,
+      analysisDate: analysisDate,
+      analysisParameters: analysisParameters,
+      hasFlowRate: hasFlowRate,
+      flowRateValue: flowRateValue,
+      flowRateDate: flowRateDate,
+      photoReferences: photoReferences,
+      recommendations: recommendations,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      submittedAt: submittedAt,
+    );
   }
 }
 

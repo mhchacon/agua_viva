@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
-import '../models/spring_assessment_model.dart';
+import '../models/assessment_model.dart';
 
 class ReportService {
   // Generate a CSV string from assessment data
@@ -12,7 +12,7 @@ class ReportService {
     // Add data rows
     for (var assessment in assessments) {
       final formattedDate = DateFormat('dd/MM/yyyy').format(assessment.updatedAt);
-      csvData += '${assessment.id},${_escapeCsvField(assessment.ownerName)},' 
+      csvData += '${assessment.idString},${_escapeCsvField(assessment.ownerName)},' 
                '${_escapeCsvField(assessment.municipality)},${_escapeCsvField(assessment.status)},' 
                '${_escapeCsvField(assessment.generalState)},${assessment.hydroEnvironmentalTotal},' 
                '$formattedDate\n';
@@ -39,14 +39,14 @@ class ReportService {
     
     // For now, we'll just create a text representation of what would be in the PDF
     String reportText = "RELATÓRIO DE AVALIAÇÃO DE NASCENTE\n\n";
-    reportText += "ID: ${assessment.id}\n";
+    reportText += "ID: ${assessment.idString}\n";
     reportText += "Proprietário: ${assessment.ownerName}\n";
     reportText += "Município: ${assessment.municipality}\n";
     reportText += "Referência: ${assessment.reference}\n";
     reportText += "Status: ${assessment.status}\n";
     reportText += "Estado Geral: ${assessment.generalState}\n";
     reportText += "Pontuação Ambiental: ${assessment.hydroEnvironmentalTotal}/33\n";
-    reportText += "\nAvaliador: ${assessment.evaluatorId}\n";
+    reportText += "\nAvaliador: ${assessment.evaluatorIdString}\n";
     reportText += "Data da Avaliação: ${DateFormat('dd/MM/yyyy').format(assessment.createdAt)}\n";
     
     // Convert text to Uint8List (in a real app, this would be PDF data)

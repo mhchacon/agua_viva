@@ -1,13 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import '../models/spring_assessment_model.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:agua_viva/config/mongodb_config.dart';
+import 'package:agua_viva/models/spring_model.dart';
 import 'package:agua_viva/models/assessment_model.dart';
+import 'package:agua_viva/models/location.dart';
+import 'package:agua_viva/services/api_service.dart';
+import 'package:agua_viva/utils/logger.dart';
 
 class AssessmentService {
+  final ApiService _apiService;
+  final _logger = AppLogger();
+  late Db _db;
+  late DbCollection _assessmentsCollection;
+
   // Storage keys
   static const String _springsKey = 'springs_data';
   static const String _assessmentsKey = 'assessments_data';
@@ -21,7 +29,8 @@ class AssessmentService {
   final _assessmentsStreamController = StreamController<List<SpringAssessment>>.broadcast();
   
   // Constructor - load initial data
-  AssessmentService() {
+  AssessmentService(this._apiService) {
+    _initDb();
     _loadData();
   }
   
@@ -77,7 +86,7 @@ class AssessmentService {
   Future<void> _initializeSampleData() async {
     // Sample springs
     _springs = [
-      Spring(
+      Spring.fromStringIds(
         id: 'spring1',
         ownerId: 'user123',
         ownerName: 'José da Silva',
@@ -91,7 +100,7 @@ class AssessmentService {
         createdAt: DateTime.now().subtract(const Duration(days: 120)),
         updatedAt: DateTime.now().subtract(const Duration(days: 30)),
       ),
-      Spring(
+      Spring.fromStringIds(
         id: 'spring2',
         ownerId: 'user123',
         ownerName: 'José da Silva',
@@ -105,7 +114,7 @@ class AssessmentService {
         createdAt: DateTime.now().subtract(const Duration(days: 90)),
         updatedAt: DateTime.now().subtract(const Duration(days: 20)),
       ),
-      Spring(
+      Spring.fromStringIds(
         id: 'spring3',
         ownerId: 'user456',
         ownerName: 'Ana Oliveira',
@@ -123,7 +132,7 @@ class AssessmentService {
     
     // Sample assessments
     _assessments = [
-      SpringAssessment(
+      SpringAssessment.fromStringIds(
         id: 'assessment1',
         springId: 'spring1',
         evaluatorId: 'evaluator1',
@@ -192,7 +201,7 @@ class AssessmentService {
         updatedAt: DateTime.now().subtract(const Duration(days: 45)),
         submittedAt: DateTime.now().subtract(const Duration(days: 50)),
       ),
-      SpringAssessment(
+      SpringAssessment.fromStringIds(
         id: 'assessment2',
         springId: 'spring2',
         evaluatorId: 'evaluator1',
@@ -258,7 +267,7 @@ class AssessmentService {
         updatedAt: DateTime.now().subtract(const Duration(days: 30)),
         submittedAt: DateTime.now().subtract(const Duration(days: 30)),
       ),
-      SpringAssessment(
+      SpringAssessment.fromStringIds(
         id: 'assessment3',
         springId: 'spring3',
         evaluatorId: 'evaluator2',
@@ -330,58 +339,55 @@ class AssessmentService {
     await _saveAssessments();
   }
 
-  // Create or update a spring
-  Future<String> saveSpring(Spring spring) async {
+  void _initDb() async {
     try {
-      String springId = spring.id;
-      final now = DateTime.now();
-      
-      if (springId.isEmpty) {
-        // Create new spring with UUID
-        springId = const Uuid().v4();
-        final newSpring = Spring(
-          id: springId,
-          ownerId: spring.ownerId,
-          ownerName: spring.ownerName,
-          location: spring.location,
-          altitude: spring.altitude,
-          municipality: spring.municipality,
-          reference: spring.reference,
-          hasCAR: spring.hasCAR,
-          carNumber: spring.carNumber,
-          hasAPP: spring.hasAPP,
-          appStatus: spring.appStatus,
-          createdAt: now,
-          updatedAt: now,
-        );
-        
-        _springs.add(newSpring);
-      } else {
-        // Update existing spring
-        final index = _springs.indexWhere((s) => s.id == springId);
-        if (index >= 0) {
-          _springs[index] = Spring(
-            id: springId,
-            ownerId: spring.ownerId,
-            ownerName: spring.ownerName,
-            location: spring.location,
-            altitude: spring.altitude,
-            municipality: spring.municipality,
-            reference: spring.reference,
-            hasCAR: spring.hasCAR,
-            carNumber: spring.carNumber,
-            hasAPP: spring.hasAPP,
-            appStatus: spring.appStatus,
-            createdAt: _springs[index].createdAt,
-            updatedAt: now,
-          );
-        }
-      }
-      
-      await _saveSprings();
-      return springId;
+      _db = await Db.create(MongoDBConfig.connectionString);
+      await _db.open();
+      _assessmentsCollection = _db.collection('assessments');
+      _logger.info('Conexão com MongoDB estabelecida com sucesso');
     } catch (e) {
-      print('Error saving spring: $e');
+      _logger.error('Erro ao conectar com MongoDB: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> dispose() async {
+    await _db.close();
+    await _springsStreamController.close();
+    await _assessmentsStreamController.close();
+  }
+
+  // Get single assessment by ID
+  Future<SpringAssessment?> getAssessmentById(String id) async {
+    try {
+      final result = await _assessmentsCollection.findOne(where.id(ObjectId.parse(id)));
+      if (result != null) {
+        return SpringAssessment.fromMap(result);
+      }
+      return null;
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliação: $e');
+      rethrow;
+    }
+  }
+
+  // Update assessment status
+  Future<void> updateAssessmentStatus(String id, String status, String? justification) async {
+    try {
+      final update = {
+        '\$set': {
+          'status': status,
+          'updatedAt': DateTime.now(),
+          if (justification != null) 'justification': justification,
+        }
+      };
+
+      await _assessmentsCollection.update(
+        where.id(ObjectId.parse(id)),
+        update,
+      );
+    } catch (e) {
+      _logger.error('Erro ao atualizar status da avaliação: $e');
       rethrow;
     }
   }
@@ -389,225 +395,80 @@ class AssessmentService {
   // Save assessment (create or update)
   Future<String> saveAssessment(SpringAssessment assessment) async {
     try {
-      String assessmentId = assessment.id;
-      final now = DateTime.now();
-      
-      if (assessmentId.isEmpty) {
-        // Create new assessment with UUID
-        assessmentId = const Uuid().v4();
-        final newAssessment = SpringAssessment(
-          id: assessmentId,
-          springId: assessment.springId,
-          evaluatorId: assessment.evaluatorId,
-          status: assessment.status,
-          environmentalServices: assessment.environmentalServices,
-          ownerName: assessment.ownerName,
-          hasCAR: assessment.hasCAR,
-          carNumber: assessment.carNumber,
-          location: assessment.location,
-          altitude: assessment.altitude,
-          municipality: assessment.municipality,
-          reference: assessment.reference,
-          hasAPP: assessment.hasAPP,
-          appStatus: assessment.appStatus,
-          hasWaterFlow: assessment.hasWaterFlow,
-          hasWetlandVegetation: assessment.hasWetlandVegetation,
-          hasFavorableTopography: assessment.hasFavorableTopography,
-          hasSoilSaturation: assessment.hasSoilSaturation,
-          springType: assessment.springType,
-          springCharacteristic: assessment.springCharacteristic,
-          diffusePoints: assessment.diffusePoints,
-          flowRegime: assessment.flowRegime,
-          ownerResponse: assessment.ownerResponse,
-          informationSource: assessment.informationSource,
-          hydroEnvironmentalScores: assessment.hydroEnvironmentalScores,
-          hydroEnvironmentalTotal: assessment.hydroEnvironmentalTotal,
-          surroundingConditions: assessment.surroundingConditions,
-          springConditions: assessment.springConditions,
-          anthropicImpacts: assessment.anthropicImpacts,
-          generalState: assessment.generalState,
-          primaryUse: assessment.primaryUse,
-          hasWaterAnalysis: assessment.hasWaterAnalysis,
-          analysisDate: assessment.analysisDate,
-          analysisParameters: assessment.analysisParameters,
-          hasFlowRate: assessment.hasFlowRate,
-          flowRateValue: assessment.flowRateValue,
-          flowRateDate: assessment.flowRateDate,
-          photoReferences: assessment.photoReferences,
-          recommendations: assessment.recommendations,
-          createdAt: now,
-          updatedAt: now,
-          submittedAt: assessment.submittedAt,
-        );
-        
-        _assessments.add(newAssessment);
-      } else {
-        // Update existing assessment
-        final index = _assessments.indexWhere((a) => a.id == assessmentId);
-        if (index >= 0) {
-          _assessments[index] = SpringAssessment(
-            id: assessmentId,
-            springId: assessment.springId,
-            evaluatorId: assessment.evaluatorId,
-            status: assessment.status,
-            environmentalServices: assessment.environmentalServices,
-            ownerName: assessment.ownerName,
-            hasCAR: assessment.hasCAR,
-            carNumber: assessment.carNumber,
-            location: assessment.location,
-            altitude: assessment.altitude,
-            municipality: assessment.municipality,
-            reference: assessment.reference,
-            hasAPP: assessment.hasAPP,
-            appStatus: assessment.appStatus,
-            hasWaterFlow: assessment.hasWaterFlow,
-            hasWetlandVegetation: assessment.hasWetlandVegetation,
-            hasFavorableTopography: assessment.hasFavorableTopography,
-            hasSoilSaturation: assessment.hasSoilSaturation,
-            springType: assessment.springType,
-            springCharacteristic: assessment.springCharacteristic,
-            diffusePoints: assessment.diffusePoints,
-            flowRegime: assessment.flowRegime,
-            ownerResponse: assessment.ownerResponse,
-            informationSource: assessment.informationSource,
-            hydroEnvironmentalScores: assessment.hydroEnvironmentalScores,
-            hydroEnvironmentalTotal: assessment.hydroEnvironmentalTotal,
-            surroundingConditions: assessment.surroundingConditions,
-            springConditions: assessment.springConditions,
-            anthropicImpacts: assessment.anthropicImpacts,
-            generalState: assessment.generalState,
-            primaryUse: assessment.primaryUse,
-            hasWaterAnalysis: assessment.hasWaterAnalysis,
-            analysisDate: assessment.analysisDate,
-            analysisParameters: assessment.analysisParameters,
-            hasFlowRate: assessment.hasFlowRate,
-            flowRateValue: assessment.flowRateValue,
-            flowRateDate: assessment.flowRateDate,
-            photoReferences: assessment.photoReferences,
-            recommendations: assessment.recommendations,
-            createdAt: _assessments[index].createdAt,
-            updatedAt: now,
-            submittedAt: assessment.submittedAt ?? (assessment.status != 'draft' ? now : null),
-          );
-        }
-      }
-      
-      await _saveAssessments();
-      return assessmentId;
+      final response = await _apiService.post('/assessments', assessment.toJson());
+      return response['id'] as String;
     } catch (e) {
-      print('Error saving assessment: $e');
-      rethrow;
-    }
-  }
-
-  // Submit assessment for review (changes status to pending)
-  Future<void> submitAssessment(String assessmentId) async {
-    try {
-      final index = _assessments.indexWhere((a) => a.id == assessmentId);
-      if (index >= 0) {
-        final assessment = _assessments[index];
-        final now = DateTime.now();
-        
-        _assessments[index] = SpringAssessment(
-          id: assessment.id,
-          springId: assessment.springId,
-          evaluatorId: assessment.evaluatorId,
-          status: 'pending',
-          environmentalServices: assessment.environmentalServices,
-          ownerName: assessment.ownerName,
-          hasCAR: assessment.hasCAR,
-          carNumber: assessment.carNumber,
-          location: assessment.location,
-          altitude: assessment.altitude,
-          municipality: assessment.municipality,
-          reference: assessment.reference,
-          hasAPP: assessment.hasAPP,
-          appStatus: assessment.appStatus,
-          hasWaterFlow: assessment.hasWaterFlow,
-          hasWetlandVegetation: assessment.hasWetlandVegetation,
-          hasFavorableTopography: assessment.hasFavorableTopography,
-          hasSoilSaturation: assessment.hasSoilSaturation,
-          springType: assessment.springType,
-          springCharacteristic: assessment.springCharacteristic,
-          diffusePoints: assessment.diffusePoints,
-          flowRegime: assessment.flowRegime,
-          ownerResponse: assessment.ownerResponse,
-          informationSource: assessment.informationSource,
-          hydroEnvironmentalScores: assessment.hydroEnvironmentalScores,
-          hydroEnvironmentalTotal: assessment.hydroEnvironmentalTotal,
-          surroundingConditions: assessment.surroundingConditions,
-          springConditions: assessment.springConditions,
-          anthropicImpacts: assessment.anthropicImpacts,
-          generalState: assessment.generalState,
-          primaryUse: assessment.primaryUse,
-          hasWaterAnalysis: assessment.hasWaterAnalysis,
-          analysisDate: assessment.analysisDate,
-          analysisParameters: assessment.analysisParameters,
-          hasFlowRate: assessment.hasFlowRate,
-          flowRateValue: assessment.flowRateValue,
-          flowRateDate: assessment.flowRateDate,
-          photoReferences: assessment.photoReferences,
-          recommendations: assessment.recommendations,
-          createdAt: assessment.createdAt,
-          updatedAt: now,
-          submittedAt: now,
-        );
-        
-        await _saveAssessments();
-      }
-    } catch (e) {
-      print('Error submitting assessment: $e');
+      _logger.error('Erro ao salvar avaliação: $e');
       rethrow;
     }
   }
 
   // Get all assessments for an evaluator
-  Stream<List<SpringAssessment>> getEvaluatorAssessments(String evaluatorId) {
-    _assessmentsStreamController.add(
-      _assessments.where((a) => a.evaluatorId == evaluatorId).toList()
-    );
-    
-    return _assessmentsStreamController.stream.map((assessments) {
-      return assessments.where((a) => a.evaluatorId == evaluatorId).toList();
-    });
+  Stream<List<SpringAssessment>> getEvaluatorAssessments(String evaluatorId) async* {
+    try {
+      final cursor = _assessmentsCollection.find(
+        where.eq('evaluatorId', ObjectId.parse(evaluatorId))
+      );
+      
+      final assessments = await cursor.map((doc) => SpringAssessment.fromMap(doc)).toList();
+      yield assessments;
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliações do avaliador: $e');
+      rethrow;
+    }
   }
 
   // Get all assessments for a spring
-  Stream<List<SpringAssessment>> getSpringAssessments(String springId) {
-    _assessmentsStreamController.add(
-      _assessments.where((a) => a.springId == springId).toList()
-    );
-    
-    return _assessmentsStreamController.stream.map((assessments) {
-      return assessments.where((a) => a.springId == springId).toList();
-    });
+  Stream<List<SpringAssessment>> getSpringAssessments(String springId) async* {
+    try {
+      final cursor = _assessmentsCollection.find(
+        where.eq('springId', ObjectId.parse(springId))
+      );
+      
+      final assessments = await cursor.map((doc) => SpringAssessment.fromMap(doc)).toList();
+      yield assessments;
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliações da nascente: $e');
+      rethrow;
+    }
   }
 
   // Get all assessments (for admin)
-  Stream<List<SpringAssessment>> getAllAssessments() {
-    _assessmentsStreamController.add(_assessments);
-    return _assessmentsStreamController.stream;
+  Stream<List<SpringAssessment>> getAllAssessments() async* {
+    try {
+      final cursor = _assessmentsCollection.find();
+      final assessments = await cursor.map((doc) => SpringAssessment.fromMap(doc)).toList();
+      yield assessments;
+    } catch (e) {
+      _logger.error('Erro ao buscar todas avaliações: $e');
+      rethrow;
+    }
   }
 
   // Get assessments by status
-  Stream<List<SpringAssessment>> getAssessmentsByStatus(String status) {
-    _assessmentsStreamController.add(
-      _assessments.where((a) => a.status == status).toList()
-    );
-    
-    return _assessmentsStreamController.stream.map((assessments) {
-      return assessments.where((a) => a.status == status).toList();
-    });
+  Stream<List<SpringAssessment>> getAssessmentsByStatus(String status) async* {
+    try {
+      final cursor = _assessmentsCollection.find(
+        where.eq('status', status)
+      );
+      
+      final assessments = await cursor.map((doc) => SpringAssessment.fromMap(doc)).toList();
+      yield assessments;
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliações por status: $e');
+      rethrow;
+    }
   }
 
   // Get springs by owner
   Stream<List<Spring>> getOwnerSprings(String ownerId) {
+    final ownerObjectId = ObjectId.parse(ownerId);
     _springsStreamController.add(
-      _springs.where((s) => s.ownerId == ownerId).toList()
+      _springs.where((s) => s.ownerId == ownerObjectId).toList()
     );
     
     return _springsStreamController.stream.map((springs) {
-      return springs.where((s) => s.ownerId == ownerId).toList();
+      return springs.where((s) => s.ownerId == ownerObjectId).toList();
     });
   }
 
@@ -617,175 +478,144 @@ class AssessmentService {
     return _springsStreamController.stream;
   }
 
-  // Get single assessment by ID
-  Future<SpringAssessment?> getAssessmentById(String id) async {
-    try {
-      return _assessments.firstWhere((a) => a.id == id);
-    } catch (e) {
-      print('Error getting assessment: $e');
-      return null;
-    }
-  }
+  static const String collectionName = 'assessments';
 
-  // Update assessment status (for admin)
-  Future<void> updateAssessmentStatus(String id, String status, String? justification) async {
+  // Métodos para gerenciar avaliações
+  Future<SpringAssessment> createAssessment(SpringAssessment assessment) async {
     try {
-      final index = _assessments.indexWhere((a) => a.id == id);
-      if (index >= 0) {
-        final assessment = _assessments[index];
-        
-        _assessments[index] = SpringAssessment(
-          id: assessment.id,
-          springId: assessment.springId,
-          evaluatorId: assessment.evaluatorId,
-          status: status,
-          environmentalServices: assessment.environmentalServices,
-          ownerName: assessment.ownerName,
-          hasCAR: assessment.hasCAR,
-          carNumber: assessment.carNumber,
-          location: assessment.location,
-          altitude: assessment.altitude,
-          municipality: assessment.municipality,
-          reference: assessment.reference,
-          hasAPP: assessment.hasAPP,
-          appStatus: assessment.appStatus,
-          hasWaterFlow: assessment.hasWaterFlow,
-          hasWetlandVegetation: assessment.hasWetlandVegetation,
-          hasFavorableTopography: assessment.hasFavorableTopography,
-          hasSoilSaturation: assessment.hasSoilSaturation,
-          springType: assessment.springType,
-          springCharacteristic: assessment.springCharacteristic,
-          diffusePoints: assessment.diffusePoints,
-          flowRegime: assessment.flowRegime,
-          ownerResponse: assessment.ownerResponse,
-          informationSource: assessment.informationSource,
-          hydroEnvironmentalScores: assessment.hydroEnvironmentalScores,
-          hydroEnvironmentalTotal: assessment.hydroEnvironmentalTotal,
-          surroundingConditions: assessment.surroundingConditions,
-          springConditions: assessment.springConditions,
-          anthropicImpacts: assessment.anthropicImpacts,
-          generalState: assessment.generalState,
-          primaryUse: assessment.primaryUse,
-          hasWaterAnalysis: assessment.hasWaterAnalysis,
-          analysisDate: assessment.analysisDate,
-          analysisParameters: assessment.analysisParameters,
-          hasFlowRate: assessment.hasFlowRate,
-          flowRateValue: assessment.flowRateValue,
-          flowRateDate: assessment.flowRateDate,
-          photoReferences: assessment.photoReferences,
-          recommendations: justification ?? assessment.recommendations,
-          createdAt: assessment.createdAt,
-          updatedAt: DateTime.now(),
-          submittedAt: assessment.submittedAt,
-        );
-        
-        await _saveAssessments();
-      }
+      final response = await _apiService.post('/assessments', assessment.toJson());
+      return SpringAssessment.fromJson(response);
     } catch (e) {
-      print('Error updating assessment status: $e');
+      _logger.error('Erro ao criar avaliação: $e');
       rethrow;
     }
   }
-  
-  // Clean up resources
-  void dispose() {
-    _springsStreamController.close();
-    _assessmentsStreamController.close();
+
+  Future<SpringAssessment> updateAssessment(SpringAssessment assessment) async {
+    try {
+      final response = await _apiService.put('/assessments/${assessment.idString}', assessment.toJson());
+      return SpringAssessment.fromJson(response);
+    } catch (e) {
+      _logger.error('Erro ao atualizar avaliação: $e');
+      rethrow;
+    }
   }
 
-  static const String collectionName = 'assessments';
-
-  // Criar nova avaliação
-  static Future<SpringAssessment> createAssessment(SpringAssessment assessment) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    await collection.insert(assessment.toMap());
-    return assessment;
+  Future<void> deleteAssessment(String id) async {
+    try {
+      await _apiService.delete('/assessments/$id');
+    } catch (e) {
+      _logger.error('Erro ao deletar avaliação: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliação por ID
-  static Future<SpringAssessment?> getAssessmentById(ObjectId id) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    final assessmentMap = await collection.findOne(where.id(id));
-    if (assessmentMap == null) return null;
-    return SpringAssessment.fromMap(assessmentMap);
+  Future<List<SpringAssessment>> getAssessmentsByEvaluator(String evaluatorId) async {
+    try {
+      final response = await _apiService.get('/assessments/evaluator/$evaluatorId');
+      return (response as List).map((json) => SpringAssessment.fromJson(json)).toList();
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliações por avaliador: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliações por avaliador
-  static Future<List<SpringAssessment>> getAssessmentsByEvaluator(ObjectId evaluatorId) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    final assessments = await collection.find(where.eq('evaluatorId', evaluatorId)).toList();
-    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  Future<List<SpringAssessment>> getAssessmentsBySpring(String springId) async {
+    try {
+      final response = await _apiService.get('/assessments/spring/$springId');
+      return (response as List).map((json) => SpringAssessment.fromJson(json)).toList();
+    } catch (e) {
+      _logger.error('Erro ao buscar avaliações por nascente: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliações por nascente
-  static Future<List<SpringAssessment>> getAssessmentsBySpring(ObjectId springId) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    final assessments = await collection.find(where.eq('springId', springId)).toList();
-    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  // Métodos para gerenciar nascentes
+  Future<Spring> createSpring(Spring spring) async {
+    try {
+      final response = await _apiService.createSpring(spring.toJson());
+      return Spring.fromJson(response);
+    } catch (e) {
+      _logger.error('Erro ao criar nascente: $e');
+      rethrow;
+    }
   }
 
-  // Atualizar avaliação
-  static Future<void> updateAssessment(SpringAssessment assessment) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    await collection.update(
-      where.id(assessment.id),
-      assessment.toMap(),
-    );
+  Future<Spring> getSpringById(String id) async {
+    try {
+      final response = await _apiService.getSpring(id);
+      return Spring.fromJson(response);
+    } catch (e) {
+      _logger.error('Erro ao buscar nascente por ID: $e');
+      rethrow;
+    }
   }
 
-  // Deletar avaliação
-  static Future<void> deleteAssessment(ObjectId id) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    await collection.remove(where.id(id));
+  Future<Spring> updateSpring(Spring spring) async {
+    try {
+      final response = await _apiService.updateSpring(spring.idString, spring.toJson());
+      return Spring.fromJson(response);
+    } catch (e) {
+      _logger.error('Erro ao atualizar nascente: $e');
+      rethrow;
+    }
   }
 
-  // Listar todas as avaliações
-  static Future<List<SpringAssessment>> getAllAssessments() async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    final assessments = await collection.find().toList();
-    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  Future<void> deleteSpring(String id) async {
+    try {
+      await _apiService.deleteSpring(id);
+    } catch (e) {
+      _logger.error('Erro ao deletar nascente: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliações por status
-  static Future<List<SpringAssessment>> getAssessmentsByStatus(String status) async {
-    final db = await MongoDBConfig.getDatabase();
-    final collection = db.collection(collectionName);
-
-    final assessments = await collection.find(where.eq('status', status)).toList();
-    return assessments.map((assessmentMap) => SpringAssessment.fromMap(assessmentMap)).toList();
+  Future<List<Spring>> getSpringsByOwner(String ownerId) async {
+    try {
+      final response = await _apiService.getSpringsByOwner(ownerId);
+      return response.map((json) => Spring.fromJson(json)).toList();
+    } catch (e) {
+      _logger.error('Erro ao buscar nascentes por proprietário: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliações pendentes
-  static Future<List<SpringAssessment>> getPendingAssessments() async {
-    return getAssessmentsByStatus('pending');
+  Future<String> calculateClassification(Map<String, dynamic> environmentalRisk, Map<String, dynamic> hydroenvironmentalRisk) async {
+    try {
+      final response = await _apiService.post(
+        '/assessments/calculate-classification',
+        {
+          'environmentalRisk': environmentalRisk,
+          'hydroenvironmentalRisk': hydroenvironmentalRisk,
+        },
+      );
+      return response['classification'] as String;
+    } catch (e) {
+      _logger.error('Erro ao calcular classificação: $e');
+      rethrow;
+    }
   }
 
-  // Buscar avaliações em rascunho
-  static Future<List<SpringAssessment>> getDraftAssessments() async {
-    return getAssessmentsByStatus('draft');
-  }
-
-  // Buscar avaliações aprovadas
-  static Future<List<SpringAssessment>> getApprovedAssessments() async {
-    return getAssessmentsByStatus('approved');
-  }
-
-  // Buscar avaliações rejeitadas
-  static Future<List<SpringAssessment>> getRejectedAssessments() async {
-    return getAssessmentsByStatus('rejected');
+  Future<void> uploadPhoto(String filePath, String photoPath) async {
+    try {
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      
+      final response = await _apiService.post(
+        '/photos',
+        {
+          'path': photoPath,
+          'data': base64Image,
+        },
+      );
+      
+      if (response.statusCode != 200) {
+        throw Exception('Erro ao fazer upload da foto: ${response.body}');
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Erro ao fazer upload da foto', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
   }
 }

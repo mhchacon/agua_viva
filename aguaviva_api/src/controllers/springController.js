@@ -47,4 +47,13 @@ exports.deleteSpring = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Erro ao remover nascente', error: err });
   }
+};
+
+exports.getSpringsByOwner = async (req, res) => {
+  try {
+    const springs = await Spring.find({ ownerId: req.params.ownerId });
+    res.json(springs);
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao buscar nascentes do proprietário', error: err });
+  }
 }; 

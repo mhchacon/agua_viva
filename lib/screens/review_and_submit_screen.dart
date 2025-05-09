@@ -3,7 +3,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:agua_viva/services/assessment_service.dart';
-import 'package:agua_viva/models/spring_assessment_model.dart';
+import 'package:agua_viva/models/assessment_model.dart';
+import 'package:uuid/uuid.dart';
+import 'package:agua_viva/services/auth_service.dart';
 
 class ReviewAndSubmitScreen extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -98,6 +100,56 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
     }
   }
 
+  String _getHidroClass() {
+    final total = widget.assessmentData['hydroEnvironmentalTotal'] as int? ?? 0;
+    if (total >= 30) return 'Ótimo';
+    if (total >= 25) return 'Bom';
+    if (total >= 20) return 'Razoável';
+    if (total >= 15) return 'Ruim';
+    return 'Péssimo';
+  }
+
+  String _getRiskClass() {
+    final total = widget.assessmentData['riskTotal'] as int? ?? 0;
+    if (total <= 10) return 'Baixo';
+    if (total <= 20) return 'Médio';
+    return 'Alto';
+  }
+
+  Future<void> _submitAssessment() async {
+    if (!mounted) return;
+    
+    final assessmentService = Provider.of<AssessmentService>(context, listen: false);
+    final authService = Provider.of<AuthService>(context, listen: false);
+    
+    final currentUser = await authService.getCurrentUser();
+    if (currentUser == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário não autenticado')),
+      );
+      return;
+    }
+
+    final assessment = SpringAssessment.fromJson({
+      ...widget.assessmentData,
+      'id': const Uuid().v4(),
+      'evaluatorId': currentUser['id'],
+      'status': 'pending',
+      'recommendations': _recommendations,
+      'createdAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+
+    await assessmentService.saveAssessment(assessment);
+    
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Avaliação enviada com sucesso!')),
+    );
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,7 +230,7 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
                         children: [
                           Icon(Icons.water_drop, color: _getHidroColor(_getHidroClass()), size: 20),
                           const SizedBox(width: 8),
-                          Text('Avaliação Hidroambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Avaliação Hidroambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
                           Text(_getHidroClass(), style: TextStyle(color: _getHidroColor(_getHidroClass()), fontWeight: FontWeight.bold)),
                         ],
                       ),
@@ -187,7 +239,7 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
                         children: [
                           Icon(Icons.warning, color: _getRiskColor(_getRiskClass()), size: 20),
                           const SizedBox(width: 8),
-                          Text('Risco Ambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text('Risco Ambiental: ', style: TextStyle(fontWeight: FontWeight.bold)),
                           Text(_getRiskClass(), style: TextStyle(color: _getRiskColor(_getRiskClass()), fontWeight: FontWeight.bold)),
                         ],
                       ),
@@ -224,71 +276,16 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: _confirm ? () async {
-                        final assessmentService = Provider.of<AssessmentService>(context, listen: false);
-                        final assessment = SpringAssessment(
-                          id: '',
-                          springId: '',
-                          evaluatorId: '',
-                          status: 'pending',
-                          environmentalServices: [],
-                          ownerName: widget.assessmentData['ownerName'] ?? '',
-                          hasCAR: widget.assessmentData['hasCAR'] ?? false,
-                          carNumber: widget.assessmentData['carNumber'],
-                          location: Location(
-                            latitude: double.tryParse(widget.assessmentData['latitude'] ?? '0') ?? 0,
-                            longitude: double.tryParse(widget.assessmentData['longitude'] ?? '0') ?? 0,
-                          ),
-                          altitude: double.tryParse(widget.assessmentData['altitude'] ?? '0') ?? 0,
-                          municipality: widget.assessmentData['municipality'] ?? '',
-                          reference: widget.assessmentData['reference'] ?? '',
-                          hasAPP: widget.assessmentData['hasAPP'] ?? false,
-                          appStatus: widget.assessmentData['appStatus'] ?? '',
-                          hasWaterFlow: widget.assessmentData['hasWaterFlow'] ?? false,
-                          hasWetlandVegetation: widget.assessmentData['hasWetlandVegetation'] ?? false,
-                          hasFavorableTopography: widget.assessmentData['hasFavorableTopography'] ?? false,
-                          hasSoilSaturation: widget.assessmentData['hasSoilSaturation'] ?? false,
-                          springType: widget.assessmentData['springType'] ?? '',
-                          springCharacteristic: widget.assessmentData['springCharacteristic'] ?? '',
-                          diffusePoints: widget.assessmentData['diffusePoints'],
-                          flowRegime: widget.assessmentData['flowRegime'] ?? '',
-                          ownerResponse: widget.assessmentData['ownerResponse'],
-                          informationSource: widget.assessmentData['informationSource'],
-                          hydroEnvironmentalScores: Map<String, int>.from(widget.assessmentData['hydroEnvironmentalScores'] ?? {}),
-                          hydroEnvironmentalTotal: widget.assessmentData['hydroEnvironmentalTotal'] ?? 0,
-                          surroundingConditions: Map<String, int>.from(widget.assessmentData['surroundingConditions'] ?? {}),
-                          springConditions: Map<String, int>.from(widget.assessmentData['springConditions'] ?? {}),
-                          anthropicImpacts: Map<String, int>.from(widget.assessmentData['anthropicImpacts'] ?? {}),
-                          generalState: widget.assessmentData['generalState'] ?? '',
-                          primaryUse: widget.assessmentData['primaryUse'] ?? '',
-                          hasWaterAnalysis: widget.assessmentData['hasWaterAnalysis'] ?? false,
-                          analysisDate: widget.assessmentData['analysisDate'],
-                          analysisParameters: widget.assessmentData['analysisParameters'],
-                          hasFlowRate: widget.assessmentData['hasFlowRate'] ?? false,
-                          flowRateValue: widget.assessmentData['flowRateValue'],
-                          flowRateDate: widget.assessmentData['flowRateDate'],
-                          photoReferences: List<String>.from(widget.assessmentData['photoReferences'] ?? []),
-                          recommendations: _recommendations.isNotEmpty ? _recommendations : (widget.assessmentData['recommendations'] ?? ''),
-                          createdAt: DateTime.now(),
-                          updatedAt: DateTime.now(),
-                          submittedAt: DateTime.now(),
-                        );
-                        await assessmentService.saveAssessment(assessment);
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Formulário enviado com sucesso!'), backgroundColor: Colors.green),
-                        );
-                        Navigator.of(context).popUntil((route) => route.isFirst);
-                      } : null,
-                      child: const Text('Submeter formulário'),
+                      onPressed: _confirm ? _submitAssessment : null,
+                      child: const Text('Enviar Avaliação'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: ElevatedButton.icon(
+                      onPressed: _generatePdf,
                       icon: const Icon(Icons.picture_as_pdf),
                       label: const Text('Gerar PDF'),
-                      onPressed: _generatePdf,
                     ),
                   ),
                 ],
@@ -298,22 +295,5 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
         ),
       ),
     );
-  }
-
-  String _getHidroClass() {
-    final total = widget.assessmentData['hydroEnvironmentalTotal'] ?? 0;
-    if (total >= 31) return 'Ótimo';
-    if (total >= 28) return 'Bom';
-    if (total >= 25) return 'Razoável';
-    if (total >= 22) return 'Ruim';
-    return 'Péssimo';
-  }
-
-  String _getRiskClass() {
-    final total = widget.assessmentData['riskTotal'] ?? 0;
-    if (total >= 14 && total <= 21) return 'Baixo';
-    if (total >= 22 && total <= 31) return 'Médio';
-    if (total >= 32 && total <= 42) return 'Alto';
-    return 'Indefinido';
   }
 } 

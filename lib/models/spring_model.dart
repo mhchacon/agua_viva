@@ -32,15 +32,16 @@ class Spring {
     required this.updatedAt,
   });
 
-  Map<String, dynamic> toMap() {
+  // Getters para IDs como String
+  String get idString => id.toHexString();
+  String get ownerIdString => ownerId.toHexString();
+
+  Map<String, dynamic> toJson() {
     return {
-      '_id': id,
-      'ownerId': ownerId,
+      '_id': id.toHexString(),
+      'ownerId': ownerId.toHexString(),
       'ownerName': ownerName,
-      'location': {
-        'latitude': location.latitude,
-        'longitude': location.longitude,
-      },
+      'location': location.toJson(),
       'altitude': altitude,
       'municipality': municipality,
       'reference': reference,
@@ -48,39 +49,59 @@ class Spring {
       'carNumber': carNumber,
       'hasAPP': hasAPP,
       'appStatus': appStatus,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
-  factory Spring.fromMap(Map<String, dynamic> map) {
+  factory Spring.fromJson(Map<String, dynamic> json) {
     return Spring(
-      id: map['_id'],
-      ownerId: map['ownerId'],
-      ownerName: map['ownerName'],
-      location: Location(
-        latitude: map['location']['latitude'],
-        longitude: map['location']['longitude'],
-      ),
-      altitude: map['altitude'],
-      municipality: map['municipality'],
-      reference: map['reference'],
-      hasCAR: map['hasCAR'],
-      carNumber: map['carNumber'],
-      hasAPP: map['hasAPP'],
-      appStatus: map['appStatus'],
-      createdAt: map['createdAt'],
-      updatedAt: map['updatedAt'],
+      id: json['_id'] is String ? ObjectId.parse(json['_id']) : json['_id'],
+      ownerId: json['ownerId'] is String ? ObjectId.parse(json['ownerId']) : json['ownerId'],
+      ownerName: json['ownerName'],
+      location: Location.fromJson(json['location']),
+      altitude: json['altitude'].toDouble(),
+      municipality: json['municipality'],
+      reference: json['reference'],
+      hasCAR: json['hasCAR'],
+      carNumber: json['carNumber'],
+      hasAPP: json['hasAPP'],
+      appStatus: json['appStatus'],
+      createdAt: json['createdAt'] is String ? DateTime.parse(json['createdAt']) : json['createdAt'],
+      updatedAt: json['updatedAt'] is String ? DateTime.parse(json['updatedAt']) : json['updatedAt'],
     );
   }
-}
 
-class Location {
-  final double latitude;
-  final double longitude;
-
-  Location({
-    required this.latitude,
-    required this.longitude,
-  });
+  // Método para criar uma nova nascente com IDs como String
+  factory Spring.fromStringIds({
+    required String id,
+    required String ownerId,
+    required String ownerName,
+    required Location location,
+    required double altitude,
+    required String municipality,
+    required String reference,
+    required bool hasCAR,
+    String? carNumber,
+    required bool hasAPP,
+    required String appStatus,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) {
+    return Spring(
+      id: ObjectId.parse(id),
+      ownerId: ObjectId.parse(ownerId),
+      ownerName: ownerName,
+      location: location,
+      altitude: altitude,
+      municipality: municipality,
+      reference: reference,
+      hasCAR: hasCAR,
+      carNumber: carNumber,
+      hasAPP: hasAPP,
+      appStatus: appStatus,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
 } 
