@@ -6,6 +6,7 @@ import 'package:agua_viva/screens/dashboard_screen.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'screens/cadastro_proprietario_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,20 +30,55 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Água Viva PSA',
-        theme: lightTheme,
+        theme: ThemeData(
+          primaryColor: AppTheme.primaryColor,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppTheme.primaryColor,
+            primary: AppTheme.primaryColor,
+            secondary: AppTheme.secondaryColor,
+          ),
+          useMaterial3: true,
+          inputDecorationTheme: InputDecorationTheme(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppTheme.primaryColor,
+                width: 2,
+              ),
+            ),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 12,
+              ),
+            ),
+          ),
+        ),
         darkTheme: darkTheme,
         themeMode: ThemeMode.system,
-        home: const AuthGate(),
+        home: const RoleSelectionScreen(),
         debugShowCheckedModeBanner: false,
-        localizationsDelegates: [
+        localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        supportedLocales: [
+        supportedLocales: const [
           Locale('pt', 'BR'),
-          Locale('en', 'US'),
         ],
+        routes: {
+          '/cadastro': (context) => const CadastroProprietarioScreen(),
+        },
       ),
     );
   }

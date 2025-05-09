@@ -168,6 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = false;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _obscureText = true;
 
   // Pre-fill for demo purposes
   @override
@@ -175,16 +176,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     switch (widget.selectedRole) {
       case UserRole.admin:
-        _emailController.text = 'teste@psa.com';
+        _emailController.text = 'admin@psa.com';
+        _passwordController.text = '12345678';
         break;
       case UserRole.evaluator:
         _emailController.text = 'avaliador@psa.com';
+        _passwordController.text = '12345678';
         break;
       case UserRole.owner:
         _emailController.text = 'proprietario@psa.com';
+        _passwordController.text = '12345678';
         break;
     }
-    _passwordController.text = '12345';
   }
 
   @override
@@ -195,43 +198,47 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signIn() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+      try {
+        // Simular autenticação
+        await Future.delayed(const Duration(seconds: 1));
 
-    try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final success = await authService.signInWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
+        // Determinar o perfil do usuário com base no email
+        UserRole userRole;
+        if (_emailController.text == 'admin@psa.com') {
+          userRole = UserRole.admin;
+        } else if (_emailController.text == 'avaliador@psa.com') {
+          userRole = UserRole.evaluator;
+        } else {
+          userRole = UserRole.owner;
+        }
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (success) {
-        // Navigate to dashboard
+        // Navegar para o dashboard com o perfil do usuário
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => DashboardScreen(userRole: widget.selectedRole),
+            builder: (context) => DashboardScreen(userRole: userRole),
           ),
         );
-      } else {
-        setState(() {
-          _errorMessage = 'Credenciais inválidas. Tente novamente.';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Ocorreu um erro ao fazer login. Tente novamente.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erro ao fazer login. Tente novamente.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -239,179 +246,148 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Text(
-                    _getRoleTitle(widget.selectedRole),
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Entre com suas credenciais para continuar',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppTheme.primaryColor.withOpacity(0.8),
+              AppTheme.primaryColor,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Card(
+                elevation: 8,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Logo ou Título
+                        const Icon(
+                          Icons.water_drop,
+                          size: 80,
+                          color: AppTheme.primaryColor,
                         ),
-                  ),
-                  const SizedBox(height: 32),
-                  
-                  // Error message if any
-                  if (_errorMessage != null) ...[  
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.error.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            color: Theme.of(context).colorScheme.error,
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Água Viva',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryColor,
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // Campo de Email
+                        TextFormField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            labelText: 'E-mail',
+                            prefixIcon: const Icon(Icons.email),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, insira seu e-mail';
+                            }
+                            if (!value.contains('@')) {
+                              return 'Por favor, insira um e-mail válido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Campo de Senha
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscureText,
+                          decoration: InputDecoration(
+                            labelText: 'Senha',
+                            prefixIcon: const Icon(Icons.lock),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscureText ? Icons.visibility : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscureText = !_obscureText;
+                                });
+                              },
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Por favor, insira sua senha';
+                            }
+                            if (value.length < 8) {
+                              return 'A senha deve ter pelo menos 8 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        // Botão de Login
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _signIn,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
+                            child: _isLoading
+                                ? const CircularProgressIndicator()
+                                : const Text(
+                                    'Entrar',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  // Email field
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'E-mail',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor, insira seu e-mail';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Password field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: 'Senha',
-                      prefixIcon: const Icon(Icons.lock_outline_rounded),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor, insira sua senha';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  
-                  // Remember me and Forgot password
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Checkbox(
-                            value: _rememberMe,
-                            onChanged: (value) {
-                              setState(() {
-                                _rememberMe = value ?? false;
-                              });
-                            },
-                          ),
-                          const Text('Manter conectado'),
-                        ],
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // TODO: Implement forgot password functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Função não implementada neste MVP'),
-                            ),
-                          );
-                        },
-                        child: const Text('Esqueci minha senha'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Sign in button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _signIn,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator()
-                          : const Text(
-                              'Entrar',
-                              style: TextStyle(fontSize: 16),
+                        const SizedBox(height: 16),
+                        
+                        // Link para Cadastro
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed('/cadastro');
+                          },
+                          child: const Text(
+                            'Não tem uma conta? Cadastre-se',
+                            style: TextStyle(
+                              color: AppTheme.primaryColor,
+                              fontSize: 16,
                             ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Return to role selection
-                  Center(
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.arrow_back_rounded,
-                            size: 16,
-                            color: Theme.of(context).colorScheme.primary,
                           ),
-                          const SizedBox(width: 8),
-                          const Text('Voltar para seleção de perfil'),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
