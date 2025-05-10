@@ -45,6 +45,7 @@ O Água Viva se destaca como solução inovadora para o mercado de PSA (Pagament
 - **Integração técnico-proprietário**: Unifica a validação técnica e feedback do proprietário na mesma plataforma
 - **Redução de tempo**: Diminui o ciclo de validação de nascentes de semanas para dias
 - **Compressão adaptativa**: Otimiza a qualidade de imagens com base nas condições de rede
+  - **Validação por georeferencia**: validações apenas para o estado de pernambuco
 
 ## Plano de Desenvolvimento (5 Meses)
 
