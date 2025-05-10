@@ -6,6 +6,7 @@ import 'package:agua_viva/models/spring_model.dart';
 import 'package:agua_viva/models/assessment_model.dart';
 import 'package:agua_viva/services/api_service.dart';
 import 'package:agua_viva/utils/logger.dart';
+import 'package:agua_viva/config/api_config.dart';
 
 class AssessmentService {
   final ApiService _apiService;
@@ -26,6 +27,8 @@ class AssessmentService {
   // Constructor - load initial data
   AssessmentService(this._apiService) {
     _loadData();
+    // Verificar conectividade e tentar sincronizar periodicamente
+    Future.delayed(const Duration(seconds: 5), _checkAndSyncData);
   }
   
   // Getters for streams
@@ -108,10 +111,34 @@ class AssessmentService {
     await prefs.setString(_assessmentsKey, assessmentsJson);
   }
 
+  // Verificar conectividade e sincronizar dados se possível
+  Future<void> _checkAndSyncData() async {
+    try {
+      final isConnected = await _apiService.checkServerConnection();
+      if (isConnected) {
+        _logger.info('Conectado ao servidor. Sincronizando dados...');
+        await _loadData();
+      } else {
+        _logger.warning('Sem conexão com o servidor. Usando dados em cache.');
+      }
+    } catch (e) {
+      _logger.error('Erro ao verificar conectividade: $e');
+    }
+    
+    // Agendar próxima verificação
+    Future.delayed(const Duration(minutes: 2), _checkAndSyncData);
+  }
+
   // Create new assessment
   Future<SpringAssessment> createAssessment(Map<String, dynamic> assessmentData) async {
     try {
+      _logger.info('Iniciando criação de avaliação: ${assessmentData.keys}');
+      // Verificar conexão com o servidor
+      _logger.info('URL da API: ${_apiService.baseUrl}');
+      
       final response = await _apiService.post('/assessments', assessmentData);
+      _logger.info('Resposta recebida do servidor: $response');
+      
       final assessment = SpringAssessment.fromJson(response);
       
       _assessments.add(assessment);
@@ -121,11 +148,22 @@ class AssessmentService {
       return assessment;
     } catch (e) {
       _logger.error('Erro ao criar avaliação: $e');
-      throw Exception('Não foi possível criar a avaliação: $e');
+      // Tentar salvar localmente mesmo com erro
+      try {
+        _logger.info('Tentando salvar avaliação no cache local após erro no servidor');
+        final localAssessment = SpringAssessment.fromJson(assessmentData);
+        _assessments.add(localAssessment);
+        _assessmentsStreamController.add(_assessments);
+        await _saveToCache();
+        return localAssessment;
+      } catch (cacheError) {
+        _logger.error('Erro ao salvar no cache: $cacheError');
+        throw Exception('Não foi possível criar a avaliação: $e');
+      }
     }
   }
 
-  // Save assessment (create or update)
+  // Save assessment com suporte offline
   Future<String> saveAssessment(SpringAssessment assessment) async {
     try {
       final assessmentData = assessment.toJson();
@@ -133,19 +171,88 @@ class AssessmentService {
       // Remove IDs que não são ObjectIds válidos (24 caracteres)
       if (assessment.id.length != 24) {
         assessmentData.remove('id');
+        _logger.info('ID removido por não ser um ObjectId válido: ${assessment.id}');
       }
       if (assessment.springId.length != 24) {
         assessmentData.remove('springId');
+        _logger.info('SpringID removido por não ser um ObjectId válido: ${assessment.springId}');
       }
       if (assessment.evaluatorId.length != 24) {
         assessmentData.remove('evaluatorId');
+        _logger.info('EvaluatorID removido por não ser um ObjectId válido: ${assessment.evaluatorId}');
       }
 
-      final response = await _apiService.post('/assessments', assessmentData);
-      if (response is Map<String, dynamic> && response.containsKey('id')) {
-        return response['id'] as String;
-      } else {
-        throw Exception('Resposta inválida do servidor');
+      _logger.info('Tentando salvar avaliação no servidor...');
+      _logger.info('Modo offline: ${ApiConfig.offlineMode}');
+      
+      try {
+        final response = await _apiService.post('/assessments', assessmentData);
+        _logger.info('Resposta recebida: $response');
+        
+        String id;
+        if (response is Map<String, dynamic>) {
+          // Verificar se é um ID offline
+          if (response.containsKey('_offlineId')) {
+            _logger.info('Salvando em modo offline com ID: ${response['_offlineId']}');
+            id = response['_offlineId'];
+            
+            // Marcando para sincronização futura
+            assessmentData['_needsSync'] = true;
+            
+            // Salvar em cache com ID offline
+            final offlineAssessment = assessment.copyWith(id: id);
+            _assessments.add(offlineAssessment);
+            _assessmentsStreamController.add(_assessments);
+            await _saveToCache();
+            
+            return id;
+          } 
+          // Verificar IDs normais
+          else if (response.containsKey('id')) {
+            id = response['id'] as String;
+          } else if (response.containsKey('_id')) {
+            id = response['_id'] as String;
+          } else {
+            _logger.error('Resposta não contém ID: $response');
+            throw Exception('Resposta inválida do servidor');
+          }
+          
+          // Salvou com sucesso no servidor
+          final serverAssessment = SpringAssessment.fromJson(response);
+          
+          // Atualizar na lista local
+          final index = _assessments.indexWhere((a) => a.id == assessment.id);
+          if (index >= 0) {
+            _assessments[index] = serverAssessment;
+          } else {
+            _assessments.add(serverAssessment);
+          }
+          
+          _assessmentsStreamController.add(_assessments);
+          await _saveToCache();
+          
+          return id;
+        } else {
+          throw Exception('Resposta inválida do servidor');
+        }
+      } catch (e) {
+        // Em caso de erro na conexão, salva localmente
+        _logger.warning('Erro ao salvar no servidor. Salvando localmente: $e');
+        
+        // Gerar ID offline se necessário
+        final offlineId = 'offline_${DateTime.now().millisecondsSinceEpoch}';
+        final offlineAssessment = assessment.copyWith(
+          id: offlineId,
+          status: 'pending',
+          updatedAt: DateTime.now(),
+        );
+        
+        // Armazenar localmente
+        _assessments.add(offlineAssessment);
+        _assessmentsStreamController.add(_assessments);
+        await _saveToCache();
+        
+        return offlineId;
       }
     } catch (e) {
       _logger.error('Erro ao salvar avaliação: $e');

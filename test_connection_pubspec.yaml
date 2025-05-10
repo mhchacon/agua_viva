@@ -1,0 +1,8 @@
+name: test_connection
+description: Script para testar conexão com o servidor
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  http: ^1.1.0 
