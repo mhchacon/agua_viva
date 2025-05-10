@@ -1,6 +1,20 @@
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
 class ApiConfig {
+  // Cliente HTTP para permitir mocks nos testes
+  static http.Client httpClient = http.Client();
+  
+  // Notificador para o modo offline
+  static final ValueNotifier<bool> offlineModeNotifier = ValueNotifier<bool>(false);
+  
   // Flag para modo offline (quando o servidor não está disponível)
-  static bool offlineMode = false;
+  static bool get offlineMode => offlineModeNotifier.value;
+  static set offlineMode(bool value) {
+    if (offlineModeNotifier.value != value) {
+      offlineModeNotifier.value = value;
+    }
+  }
   
   // URLs disponíveis
   static const String baseUrl = 'http://localhost:3000/api';

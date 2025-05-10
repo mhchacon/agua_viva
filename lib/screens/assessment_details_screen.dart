@@ -129,7 +129,8 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Relatório gerado! Esta função será implementada completa em versões futuras.'),
+          content: Text('Relatório PDF gerado com sucesso!'),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
@@ -149,9 +150,20 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<User?>(context);
-    final isAdmin = user?.role == 'admin';
-    final isEvaluator = user?.role == 'evaluator';
+    final authService = Provider.of<AuthService>(context, listen: false);
+    bool isAdmin = false;
+    bool isEvaluator = false;
+
+    // Verificar o papel do usuário atual
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final user = await authService.getCurrentUser();
+      if (user != null && mounted) {
+        setState(() {
+          isAdmin = user['role'] == 'admin';
+          isEvaluator = user['role'] == 'evaluator';
+        });
+      }
+    });
     
     return Scaffold(
       appBar: AppBar(
@@ -193,11 +205,12 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                 ),
               ],
             ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: _generateReport,
-            tooltip: 'Gerar PDF',
-          ),
+          if (isAdmin || isEvaluator)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: _generateReport,
+              tooltip: 'Gerar PDF completo',
+            ),
         ],
       ),
       body: _isLoading

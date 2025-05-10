@@ -6,6 +6,7 @@ import 'package:agua_viva/screens/assessment_form_screen.dart';
 import 'package:agua_viva/screens/assessment_details_screen.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/theme.dart';
+import 'package:agua_viva/services/report_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserRole userRole;
@@ -218,8 +219,401 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   }
 
   Widget _buildAdminDashboard() {
-    return const Center(child: Text('Painel do Administrador'));
+    return Consumer<AssessmentService>(
+      builder: (context, assessmentService, _) {
+        return FutureBuilder<List<SpringAssessment>>(
+          future: assessmentService.getAllAssessments(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text('Erro ao carregar dados: ${snapshot.error}'),
+                  ],
+                ),
+              );
+            }
+
+            final assessments = snapshot.data ?? [];
+            
+            if (assessments.isEmpty) {
+              return const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.assessment_outlined, size: 48, color: Colors.blue),
+                    SizedBox(height: 16),
+                    Text(
+                      'Nenhuma avaliação cadastrada',
+                      style: TextStyle(fontSize: 18),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'As avaliações serão exibidas aqui quando disponíveis',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                )
+              );
+            }
+
+            // Extrair estatísticas e dados para o dashboard
+            final totalAssessments = assessments.length;
+            final approvedCount = assessments.where((a) => a.status == 'approved').length;
+            final pendingCount = assessments.where((a) => a.status == 'pending').length;
+            final rejectedCount = assessments.where((a) => a.status == 'rejected').length;
+            
+            // Agrupar por município para estatísticas
+            final municipalityMap = <String, int>{};
+            for (var assessment in assessments) {
+              final municipality = assessment.municipality;
+              municipalityMap[municipality] = (municipalityMap[municipality] ?? 0) + 1;
+            }
+            
+            // Extrair os municípios com mais avaliações
+            final topMunicipalities = municipalityMap.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value));
+            
+            // Calcular porcentagens de classificação
+            final preservedCount = assessments.where((a) => a.generalState == 'Preservada').length;
+            final disturbedCount = assessments.where((a) => a.generalState == 'Perturbada').length;
+            final degradedCount = assessments.where((a) => a.generalState == 'Degradada').length;
+            
+            final preservedPercent = (preservedCount / totalAssessments * 100).toStringAsFixed(1);
+            final disturbedPercent = (disturbedCount / totalAssessments * 100).toStringAsFixed(1);
+            final degradedPercent = (degradedCount / totalAssessments * 100).toStringAsFixed(1);
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Painel de Controle',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Resumo de avaliações
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Resumo de Avaliações',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildStatCard(
+                                'Total', 
+                                totalAssessments.toString(), 
+                                Icons.assessment, 
+                                AppTheme.primaryColor,
+                              ),
+                              _buildStatCard(
+                                'Aprovadas', 
+                                approvedCount.toString(), 
+                                Icons.check_circle, 
+                                Colors.green,
+                              ),
+                              _buildStatCard(
+                                'Pendentes', 
+                                pendingCount.toString(), 
+                                Icons.pending, 
+                                Colors.orange,
+                              ),
+                              _buildStatCard(
+                                'Rejeitadas', 
+                                rejectedCount.toString(), 
+                                Icons.cancel, 
+                                Colors.red,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => _generateSummaryPdf(assessments),
+                            icon: const Icon(Icons.picture_as_pdf),
+                            label: const Text('Gerar Relatório PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              minimumSize: const Size(double.infinity, 48),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Distribuição de estados das nascentes
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Estado das Nascentes',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              _buildProgressStat(
+                                'Preservadas', 
+                                preservedCount, 
+                                totalAssessments, 
+                                Colors.green,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildProgressStat(
+                                'Perturbadas', 
+                                disturbedCount, 
+                                totalAssessments, 
+                                Colors.orange,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildProgressStat(
+                                'Degradadas', 
+                                degradedCount, 
+                                totalAssessments, 
+                                Colors.red,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Municípios
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Municípios mais Avaliados',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          ...topMunicipalities.take(5).map((entry) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    entry.key,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    entry.value.toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )).toList(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Últimas avaliações
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Últimas Avaliações',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Divider(),
+                          const SizedBox(height: 8),
+                          ...assessments
+                            .take(5)
+                            .map((assessment) => ListTile(
+                              leading: Icon(
+                                Icons.water_drop,
+                                color: _getStatusColor(assessment.status),
+                              ),
+                              title: Text(assessment.ownerName),
+                              subtitle: Text('${assessment.municipality} - ${assessment.generalState}'),
+                              trailing: Chip(
+                                label: Text(_getStatusText(assessment.status)),
+                                backgroundColor: _getStatusColor(assessment.status).withOpacity(0.1),
+                                labelStyle: TextStyle(
+                                  color: _getStatusColor(assessment.status),
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => AssessmentDetailsScreen(
+                                      assessmentId: assessment.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.center,
+                            child: TextButton.icon(
+                              icon: const Icon(Icons.view_list),
+                              label: const Text('Ver todas'),
+                              onPressed: () {
+                                // Aqui poderia navegar para uma tela com a lista completa
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 36),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            color: color,
+          ),
+        ),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.grey,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressStat(String label, int count, int total, Color color) {
+    final percent = total > 0 ? count / total : 0.0;
+    
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 4),
+          LinearProgressIndicator(
+            value: percent,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 10,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${count.toString()} (${(percent * 100).toStringAsFixed(1)}%)',
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateSummaryPdf(List<SpringAssessment> assessments) async {
+    final reportService = ReportService();
+    
+    try {
+      await reportService.generateSummaryPdfReport(assessments);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Relatório PDF gerado com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao gerar relatório: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Widget _buildMapView() {
     return const Center(child: Text('Mapa de Nascentes'));
   }
@@ -227,11 +621,143 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     return const Center(child: Text('Relatórios'));
   }
   Widget _buildEvaluatorAssessments() {
-    return const Center(child: Text('Minhas Avaliações'));
+    return Consumer2<AuthService, AssessmentService>(
+      builder: (context, authService, assessmentService, _) {
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: authService.getCurrentUser(),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (userSnapshot.hasError || userSnapshot.data == null) {
+              return const Center(child: Text('Erro ao carregar dados do usuário'));
+            }
+
+            final userId = userSnapshot.data!['id'] as String;
+
+            return FutureBuilder<List<SpringAssessment>?>(
+              future: (() async {
+                try {
+                  // Buscar todas as avaliações (para o avaliador ver todas)
+                  final List<SpringAssessment> assessmentsValue = await assessmentService.getAllAssessments();
+                  return assessmentsValue;
+                } catch (e) {
+                  return null;
+                }
+              })(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        Text('Erro ao carregar avaliações: ${snapshot.error}'),
+                      ],
+                    ),
+                  );
+                }
+
+                final assessments = snapshot.data ?? <SpringAssessment>[];
+
+                if (assessments.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.assessment_outlined, size: 48, color: Colors.blue),
+                        SizedBox(height: 16),
+                        Text(
+                          'Nenhuma avaliação encontrada',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'As avaliações cadastradas aparecerão aqui',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: assessments.length,
+                  itemBuilder: (context, index) {
+                    final assessment = assessments[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      elevation: 3,
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.water_drop,
+                          color: _getStatusColor(assessment.status),
+                          size: 36,
+                        ),
+                        title: Text(assessment.municipality,
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Proprietário: ${assessment.ownerName}'),
+                            Text('Referência: ${assessment.reference}'),
+                            Text('Estado: ${assessment.generalState}'),
+                            Row(
+                              children: [
+                                Text('Status: '),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _getStatusColor(assessment.status).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: _getStatusColor(assessment.status)),
+                                  ),
+                                  child: Text(
+                                    _getStatusText(assessment.status),
+                                    style: TextStyle(
+                                      color: _getStatusColor(assessment.status),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => AssessmentDetailsScreen(
+                                assessmentId: assessment.id,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
+
   Widget _buildNewAssessmentView() {
     return const Center(child: Text('Novo Cadastro'));
   }
+
   Widget _buildOwnerSprings() {
     return Consumer2<AuthService, AssessmentService>(
       builder: (context, authService, assessmentService, _) {

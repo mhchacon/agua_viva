@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/models/assessment_model.dart';
 import 'package:uuid/uuid.dart';
 import 'package:agua_viva/services/auth_service.dart';
+import 'package:agua_viva/services/report_service.dart';
 
 class ReviewAndSubmitScreen extends StatefulWidget {
   final Map<String, dynamic> assessmentData;
@@ -28,33 +27,46 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
   bool _expanded8 = false;
   bool _confirm = false;
   String _recommendations = '';
+  final ReportService _reportService = ReportService();
 
   Future<void> _generatePdf() async {
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.MultiPage(
-        build: (context) => [
-          pw.Text('Relatório de Avaliação de Nascente', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 16),
-          pw.Text('Classificação Final: ${widget.classification}', style: pw.TextStyle(fontSize: 16)),
-          pw.SizedBox(height: 12),
-          pw.Text('Dados do proprietário: ${widget.assessmentData['ownerName'] ?? ''}'),
-          pw.Text('Localização: ${widget.assessmentData['location'] ?? ''}'),
-          pw.Text('Tipo de nascente: ${widget.assessmentData['springType'] ?? ''}'),
-          pw.Text('Regime hídrico: ${widget.assessmentData['flowRegime'] ?? ''}'),
-          pw.Text('Avaliação hidroambiental: ${widget.assessmentData['hydroEnvironmentalTotal'] ?? ''}'),
-          pw.Text('Avaliação de riscos: ${widget.assessmentData['riskTotal'] ?? ''}'),
-          pw.Text('Estado final: ${widget.assessmentData['generalState'] ?? ''}'),
-          pw.Text('Uso prioritário: ${widget.assessmentData['primaryUse'] ?? ''}'),
-          pw.Text('Qualidade da água: ${widget.assessmentData['analysisParameters'] ?? ''}'),
-          pw.Text('Vazão: ${widget.assessmentData['flowRateValue'] ?? ''}'),
-          pw.SizedBox(height: 12),
-          pw.Text('Recomendações Técnicas:'),
-          pw.Text(_recommendations),
-        ],
-      ),
-    );
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final currentUser = await authService.getCurrentUser();
+
+    if (currentUser == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário não autenticado')),
+      );
+      return;
+    }
+
+    try {
+      final tempAssessment = SpringAssessment.fromJson({
+        ...widget.assessmentData,
+        'id': const Uuid().v4(),
+        'evaluatorId': currentUser['id'],
+        'status': 'pending',
+        'recommendations': _recommendations,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+
+      await _reportService.generatePdfReport(tempAssessment);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Relatório PDF gerado com sucesso'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao gerar PDF: $e')),
+      );
+    }
   }
 
   Color _getFinalColor(String classificacao) {
@@ -147,7 +159,8 @@ class _ReviewAndSubmitScreenState extends State<ReviewAndSubmitScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Avaliação enviada com sucesso!')),
     );
-    Navigator.of(context).pop();
+    
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override

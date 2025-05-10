@@ -24,7 +24,7 @@ class ApiService {
     _logger.info('Verificando conexão com o servidor: $baseUrl');
     
     try {
-      final response = await http.get(
+      final response = await ApiConfig.httpClient.get(
         Uri.parse('$baseUrl/health'),
         headers: _headers,
       ).timeout(Duration(seconds: ApiConfig.timeout));
@@ -58,7 +58,7 @@ class ApiService {
       
       _logger.info('Tentando login em: $baseUrl/auth/login');
       
-      final response = await http.post(
+      final response = await ApiConfig.httpClient.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: _headers,
         body: jsonEncode({
@@ -86,7 +86,7 @@ class ApiService {
   Future<dynamic> get(String endpoint) async {
     try {
       _logger.info('GET: $baseUrl$endpoint');
-      final response = await http.get(
+      final response = await ApiConfig.httpClient.get(
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
       ).timeout(Duration(seconds: ApiConfig.timeout));
@@ -110,7 +110,7 @@ class ApiService {
       _logger.info('POST: $baseUrl$endpoint');
       _logger.info('Dados: ${data.keys}');
       
-      final response = await http.post(
+      final response = await ApiConfig.httpClient.post(
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
         body: jsonEncode(data),
@@ -133,7 +133,7 @@ class ApiService {
   Future<dynamic> put(String endpoint, dynamic data) async {
     try {
       _logger.info('PUT: $baseUrl$endpoint');
-      final response = await http.put(
+      final response = await ApiConfig.httpClient.put(
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
         body: jsonEncode(data),
@@ -156,7 +156,7 @@ class ApiService {
   Future<void> delete(String endpoint) async {
     try {
       _logger.info('DELETE: $baseUrl$endpoint');
-      final response = await http.delete(
+      final response = await ApiConfig.httpClient.delete(
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
       ).timeout(Duration(seconds: ApiConfig.timeout));
@@ -181,7 +181,7 @@ class ApiService {
 
   // Usuários
   Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
-    final response = await http.post(
+    final response = await ApiConfig.httpClient.post(
       Uri.parse('$baseUrl/users'),
       headers: _headers,
       body: jsonEncode(userData),
@@ -190,7 +190,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getUser(String id) async {
-    final response = await http.get(
+    final response = await ApiConfig.httpClient.get(
       Uri.parse('$baseUrl/users/$id'),
       headers: _headers,
     );
@@ -199,7 +199,7 @@ class ApiService {
 
   // Nascentes
   Future<Map<String, dynamic>> createSpring(Map<String, dynamic> springData) async {
-    final response = await http.post(
+    final response = await ApiConfig.httpClient.post(
       Uri.parse('$baseUrl/springs'),
       headers: _headers,
       body: jsonEncode(springData),
@@ -208,7 +208,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getSprings() async {
-    final response = await http.get(
+    final response = await ApiConfig.httpClient.get(
       Uri.parse('$baseUrl/springs'),
       headers: _headers,
     );
@@ -216,7 +216,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> getSpring(String id) async {
-    final response = await http.get(
+    final response = await ApiConfig.httpClient.get(
       Uri.parse('$baseUrl/springs/$id'),
       headers: _headers,
     );
@@ -224,7 +224,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> updateSpring(String id, Map<String, dynamic> springData) async {
-    final response = await http.put(
+    final response = await ApiConfig.httpClient.put(
       Uri.parse('$baseUrl/springs/$id'),
       headers: _headers,
       body: jsonEncode(springData),
@@ -233,7 +233,7 @@ class ApiService {
   }
 
   Future<void> deleteSpring(String id) async {
-    final response = await http.delete(
+    final response = await ApiConfig.httpClient.delete(
       Uri.parse('$baseUrl/springs/$id'),
       headers: _headers,
     );
@@ -241,7 +241,7 @@ class ApiService {
   }
 
   Future<List<Map<String, dynamic>>> getSpringsByOwner(String ownerId) async {
-    final response = await http.get(
+    final response = await ApiConfig.httpClient.get(
       Uri.parse('$baseUrl/springs/owner/$ownerId'),
       headers: _headers,
     );
@@ -249,8 +249,16 @@ class ApiService {
   }
 
   // Avaliações
+  Future<List<Map<String, dynamic>>> getAssessments() async {
+    final response = await ApiConfig.httpClient.get(
+      Uri.parse('$baseUrl/assessments'),
+      headers: _headers,
+    );
+    return _handleListResponse(response);
+  }
+
   Future<Map<String, dynamic>> createAssessment(Map<String, dynamic> assessmentData) async {
-    final response = await http.post(
+    final response = await ApiConfig.httpClient.post(
       Uri.parse('$baseUrl/assessments'),
       headers: _headers,
       body: jsonEncode(assessmentData),
@@ -258,16 +266,16 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<List<Map<String, dynamic>>> getAssessments() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/assessments'),
+  Future<Map<String, dynamic>> getAssessment(String id) async {
+    final response = await ApiConfig.httpClient.get(
+      Uri.parse('$baseUrl/assessments/$id'),
       headers: _headers,
     );
-    return _handleListResponse(response);
+    return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> updateAssessment(String id, Map<String, dynamic> assessmentData) async {
-    final response = await http.put(
+    final response = await ApiConfig.httpClient.put(
       Uri.parse('$baseUrl/assessments/$id'),
       headers: _headers,
       body: jsonEncode(assessmentData),

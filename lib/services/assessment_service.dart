@@ -7,6 +7,7 @@ import 'package:agua_viva/models/assessment_model.dart';
 import 'package:agua_viva/services/api_service.dart';
 import 'package:agua_viva/utils/logger.dart';
 import 'package:agua_viva/config/api_config.dart';
+import 'package:agua_viva/utils/image_compression.dart';
 
 class AssessmentService {
   final ApiService _apiService;
@@ -127,6 +128,75 @@ class AssessmentService {
     
     // Agendar próxima verificação
     Future.delayed(const Duration(minutes: 2), _checkAndSyncData);
+  }
+
+  // Sincronizar dados offline com o servidor quando a conexão for restaurada
+  Future<void> syncOfflineData() async {
+    _logger.info('Tentando sincronizar dados offline com o servidor...');
+    
+    try {
+      // Verificar se há conexão com o servidor
+      final isConnected = await _apiService.checkServerConnection();
+      if (!isConnected) {
+        _logger.warning('Sem conexão, não é possível sincronizar dados offline.');
+        return;
+      }
+
+      // Carregar dados do cache
+      await _loadFromCache();
+      
+      // Verificar se há avaliações para sincronizar
+      final offlineAssessments = _assessments.where((a) => a.id.startsWith('offline_')).toList();
+      
+      if (offlineAssessments.isEmpty) {
+        _logger.info('Não há avaliações offline para sincronizar.');
+        return;
+      }
+      
+      _logger.info('Encontradas ${offlineAssessments.length} avaliações offline para sincronizar.');
+      
+      int successCount = 0;
+      
+      // Sincronizar cada avaliação
+      for (var assessment in offlineAssessments) {
+        try {
+          // Preparar dados para enviar ao servidor
+          final assessmentData = assessment.toJson();
+          // Remover ID offline
+          assessmentData.remove('id');
+          
+          // Tentar enviar ao servidor
+          final response = await _apiService.post('/assessments', assessmentData);
+          
+          if (response is Map<String, dynamic> && (response.containsKey('id') || response.containsKey('_id'))) {
+            // Obter ID do servidor
+            final serverId = response.containsKey('id') ? response['id'] as String : response['_id'] as String;
+            
+            // Remover avaliação offline
+            _assessments.removeWhere((a) => a.id == assessment.id);
+            
+            // Adicionar avaliação sincronizada
+            final serverAssessment = SpringAssessment.fromJson(response);
+            _assessments.add(serverAssessment);
+            
+            successCount++;
+            _logger.info('Avaliação sincronizada com sucesso: ${assessment.id} -> $serverId');
+          }
+        } catch (e) {
+          _logger.error('Erro ao sincronizar avaliação ${assessment.id}: $e');
+        }
+      }
+      
+      if (successCount > 0) {
+        // Atualizar o cache
+        _assessmentsStreamController.add(_assessments);
+        await _saveToCache();
+        
+        _logger.info('Sincronização concluída: $successCount/${offlineAssessments.length} avaliações sincronizadas com sucesso.');
+      }
+    } catch (e) {
+      _logger.error('Erro durante a sincronização dos dados offline: $e');
+    }
   }
 
   // Create new assessment
@@ -263,9 +333,15 @@ class AssessmentService {
   // Upload photo
   Future<void> uploadPhoto(String filePath, String photoPath) async {
     try {
-      final file = File(filePath);
+      // Comprimir a imagem antes do upload
+      final compressedFilePath = await ImageCompression.compressImage(filePath);
+      
+      // Se a compressão falhar, usa a imagem original
+      final fileToUpload = compressedFilePath ?? filePath;
+      
+      final file = File(fileToUpload);
       if (!await file.exists()) {
-        throw Exception('Arquivo não encontrado: $filePath');
+        throw Exception('Arquivo não encontrado: $fileToUpload');
       }
       
       final bytes = await file.readAsBytes();
@@ -281,6 +357,18 @@ class AssessmentService {
       
       if (response is! Map<String, dynamic>) {
         throw Exception('Resposta inválida do servidor');
+      }
+      
+      // Apagar o arquivo temporário comprimido se ele existir
+      if (compressedFilePath != null) {
+        try {
+          final compressedFile = File(compressedFilePath);
+          if (await compressedFile.exists()) {
+            await compressedFile.delete();
+          }
+        } catch (e) {
+          _logger.warning('Erro ao apagar arquivo temporário comprimido: $e');
+        }
       }
     } catch (e) {
       _logger.error('Erro ao fazer upload da foto: $e');
@@ -314,6 +402,30 @@ class AssessmentService {
       _logger.error('Erro ao buscar avaliações do proprietário: $e');
       // Try to find in cache
       return _assessments.where((a) => a.ownerCpf == cpf).toList();
+    }
+  }
+
+  // Get all assessments
+  Future<List<SpringAssessment>> getAllAssessments() async {
+    try {
+      final response = await _apiService.get('/assessments');
+      if (response is List) {
+        final assessments = response
+            .map((assessment) => SpringAssessment.fromJson(assessment))
+            .toList();
+        
+        // Atualizar a lista em cache com os dados mais recentes
+        _assessments = assessments;
+        _assessmentsStreamController.add(_assessments);
+        await _saveToCache();
+        
+        return assessments;
+      }
+      return [];
+    } catch (e) {
+      _logger.error('Erro ao buscar todas as avaliações: $e');
+      // Retornar a lista em cache se houver erro na comunicação
+      return _assessments;
     }
   }
 

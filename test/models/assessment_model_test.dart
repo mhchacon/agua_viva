@@ -5,9 +5,9 @@ import 'package:agua_viva/models/location.dart';
 void main() {
   group('SpringAssessment', () {
     late SpringAssessment assessment;
-    final testId = '507f1f77bcf86cd799439011';
-    final testSpringId = '507f1f77bcf86cd799439012';
-    final testEvaluatorId = '507f1f77bcf86cd799439013';
+    const testId = '507f1f77bcf86cd799439011';
+    const testSpringId = '507f1f77bcf86cd799439012';
+    const testEvaluatorId = '507f1f77bcf86cd799439013';
 
     setUp(() {
       assessment = SpringAssessment(
@@ -17,6 +17,7 @@ void main() {
         status: 'pending',
         environmentalServices: ['Água potável', 'Irrigação'],
         ownerName: 'João Silva',
+        ownerCpf: '123.456.789-00',
         hasCAR: true,
         carNumber: '123456',
         location: Location(latitude: -23.5505, longitude: -46.6333),
@@ -69,8 +70,8 @@ void main() {
     });
 
     test('deve criar cópia com alterações usando copyWith', () {
-      final newStatus = 'approved';
-      final newOwnerName = 'Maria Santos';
+      const newStatus = 'approved';
+      const newOwnerName = 'Maria Santos';
       
       final updatedAssessment = assessment.copyWith(
         status: newStatus,
