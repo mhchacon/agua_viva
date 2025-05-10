@@ -6,6 +6,7 @@ const userRoutes = require('./routes/userRoutes');
 const springRoutes = require('./routes/springRoutes');
 const assessmentRoutes = require('./routes/assessmentRoutes');
 const authRoutes = require('./routes/authRoutes');
+const proprietarioRoutes = require('./routes/proprietarioRoutes');
 
 const app = express();
 
@@ -16,5 +17,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/springs', springRoutes);
 app.use('/api/assessments', assessmentRoutes);
+app.use('/api/proprietarios', proprietarioRoutes);
 
 module.exports = app;

@@ -5,6 +5,7 @@ const assessmentController = require('../controllers/assessmentController');
 router.post('/', assessmentController.createAssessment);
 router.get('/', assessmentController.getAllAssessments);
 router.get('/:id', assessmentController.getAssessmentById);
+router.get('/owner/:cpf', assessmentController.getAssessmentsByOwnerCpf);
 router.put('/:id', assessmentController.updateAssessment);
 router.delete('/:id', assessmentController.deleteAssessment);
 

@@ -8,9 +8,12 @@ import 'package:agua_viva/theme.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/cadastro_proprietario_screen.dart';
 import 'services/api_service.dart';
+import 'package:agua_viva/utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final logger = AppLogger();
+  
   runApp(const MyApp());
 }
 

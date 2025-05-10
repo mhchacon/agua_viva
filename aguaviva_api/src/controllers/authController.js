@@ -32,3 +32,13 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Erro ao fazer login.', error: err });
   }
 };
+
+exports.logout = async (req, res) => {
+  try {
+    // Como estamos usando JWT, não precisamos fazer nada no servidor
+    // O cliente deve apenas remover o token localmente
+    res.json({ message: 'Logout realizado com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao fazer logout.', error: err });
+  }
+};

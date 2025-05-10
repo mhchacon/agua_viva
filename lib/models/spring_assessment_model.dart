@@ -1,6 +1,5 @@
 import 'package:uuid/uuid.dart';
 import 'location.dart';
-import 'package:mongo_dart/mongo_dart.dart';
 
 class Location {
   final double latitude;
@@ -24,12 +23,13 @@ class Location {
 }
 
 class SpringAssessment {
-  final ObjectId id;
-  final ObjectId springId;
-  final ObjectId evaluatorId;
+  final String id;
+  final String springId;
+  final String evaluatorId;
   final String status; // 'draft', 'pending', 'approved', 'rejected'
   final List<String> environmentalServices;
   final String ownerName;
+  final String ownerCpf;
   final bool hasCAR;
   final String? carNumber;
   final Location location;
@@ -74,6 +74,7 @@ class SpringAssessment {
     required this.status,
     required this.environmentalServices,
     required this.ownerName,
+    required this.ownerCpf,
     required this.hasCAR,
     this.carNumber,
     required this.location,
@@ -113,18 +114,19 @@ class SpringAssessment {
   });
 
   // Getters para IDs como String
-  String get idString => id.toHexString();
-  String get springIdString => springId.toHexString();
-  String get evaluatorIdString => evaluatorId.toHexString();
+  String get idString => id;
+  String get springIdString => springId;
+  String get evaluatorIdString => evaluatorId;
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id.toHexString(),
-      'springId': springId.toHexString(),
-      'evaluatorId': evaluatorId.toHexString(),
+      'id': id,
+      'springId': springId,
+      'evaluatorId': evaluatorId,
       'status': status,
       'environmentalServices': environmentalServices,
       'ownerName': ownerName,
+      'ownerCpf': ownerCpf,
       'hasCAR': hasCAR,
       'carNumber': carNumber,
       'location': location.toJson(),
@@ -165,48 +167,75 @@ class SpringAssessment {
   }
 
   factory SpringAssessment.fromJson(Map<String, dynamic> json) {
+    // Função auxiliar para converter para double
+    double? parseDouble(dynamic value) {
+      if (value == null) return null;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value);
+      return null;
+    }
+
     return SpringAssessment(
-      id: json['_id'] is String ? ObjectId.parse(json['_id']) : json['_id'],
-      springId: json['springId'] is String ? ObjectId.parse(json['springId']) : json['springId'],
-      evaluatorId: json['evaluatorId'] is String ? ObjectId.parse(json['evaluatorId']) : json['evaluatorId'],
-      status: json['status'],
-      environmentalServices: List<String>.from(json['environmentalServices']),
-      ownerName: json['ownerName'],
-      hasCAR: json['hasCAR'],
+      id: json['_id'] ?? json['id'] ?? '',
+      springId: json['springId'] ?? '',
+      evaluatorId: json['evaluatorId'] ?? '',
+      status: json['status'] ?? '',
+      environmentalServices: json['environmentalServices'] != null 
+          ? List<String>.from(json['environmentalServices'])
+          : [],
+      ownerName: json['ownerName'] ?? '',
+      ownerCpf: json['ownerCpf'] ?? '',
+      hasCAR: json['hasCAR'] ?? false,
       carNumber: json['carNumber'],
-      location: Location.fromJson(json['location']),
-      altitude: json['altitude'].toDouble(),
-      municipality: json['municipality'],
-      reference: json['reference'],
-      hasAPP: json['hasAPP'],
-      appStatus: json['appStatus'],
-      hasWaterFlow: json['hasWaterFlow'],
-      hasWetlandVegetation: json['hasWetlandVegetation'],
-      hasFavorableTopography: json['hasFavorableTopography'],
-      hasSoilSaturation: json['hasSoilSaturation'],
-      springType: json['springType'],
-      springCharacteristic: json['springCharacteristic'],
+      location: json['location'] != null 
+          ? Location.fromJson(json['location'])
+          : Location(latitude: 0, longitude: 0),
+      altitude: parseDouble(json['altitude']) ?? 0.0,
+      municipality: json['municipality'] ?? '',
+      reference: json['reference'] ?? '',
+      hasAPP: json['hasAPP'] ?? false,
+      appStatus: json['appStatus'] ?? '',
+      hasWaterFlow: json['hasWaterFlow'] ?? false,
+      hasWetlandVegetation: json['hasWetlandVegetation'] ?? false,
+      hasFavorableTopography: json['hasFavorableTopography'] ?? false,
+      hasSoilSaturation: json['hasSoilSaturation'] ?? false,
+      springType: json['springType'] ?? '',
+      springCharacteristic: json['springCharacteristic'] ?? '',
       diffusePoints: json['diffusePoints'],
-      flowRegime: json['flowRegime'],
+      flowRegime: json['flowRegime'] ?? '',
       ownerResponse: json['ownerResponse'],
       informationSource: json['informationSource'],
-      hydroEnvironmentalScores: Map<String, int>.from(json['hydroEnvironmentalScores']),
-      hydroEnvironmentalTotal: json['hydroEnvironmentalTotal'],
-      surroundingConditions: Map<String, int>.from(json['surroundingConditions']),
-      springConditions: Map<String, int>.from(json['springConditions']),
-      anthropicImpacts: Map<String, int>.from(json['anthropicImpacts']),
-      generalState: json['generalState'],
-      primaryUse: json['primaryUse'],
-      hasWaterAnalysis: json['hasWaterAnalysis'],
-      analysisDate: json['analysisDate'] != null ? DateTime.parse(json['analysisDate']) : null,
+      hydroEnvironmentalScores: json['hydroEnvironmentalScores'] != null
+          ? Map<String, int>.from(json['hydroEnvironmentalScores'])
+          : {},
+      hydroEnvironmentalTotal: json['hydroEnvironmentalTotal'] ?? 0,
+      surroundingConditions: json['surroundingConditions'] != null
+          ? Map<String, int>.from(json['surroundingConditions'])
+          : {},
+      springConditions: json['springConditions'] != null
+          ? Map<String, int>.from(json['springConditions'])
+          : {},
+      anthropicImpacts: json['anthropicImpacts'] != null
+          ? Map<String, int>.from(json['anthropicImpacts'])
+          : {},
+      generalState: json['generalState'] ?? '',
+      primaryUse: json['primaryUse'] ?? '',
+      hasWaterAnalysis: json['hasWaterAnalysis'] ?? false,
+      analysisDate: json['analysisDate'] != null
+          ? DateTime.parse(json['analysisDate'])
+          : null,
       analysisParameters: json['analysisParameters'],
-      hasFlowRate: json['hasFlowRate'],
-      flowRateValue: json['flowRateValue']?.toDouble(),
-      flowRateDate: json['flowRateDate'] != null ? DateTime.parse(json['flowRateDate']) : null,
-      photoReferences: List<String>.from(json['photoReferences']),
+      hasFlowRate: json['hasFlowRate'] ?? false,
+      flowRateValue: parseDouble(json['flowRateValue']),
+      flowRateDate: json['flowRateDate'] != null
+          ? DateTime.parse(json['flowRateDate'])
+          : null,
+      photoReferences: json['photoReferences'] != null
+          ? List<String>.from(json['photoReferences'])
+          : [],
       recommendations: json['recommendations'],
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt: DateTime.parse(json['updatedAt']),
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
       submittedAt: json['submittedAt'] != null ? DateTime.parse(json['submittedAt']) : null,
     );
   }
@@ -219,6 +248,7 @@ class SpringAssessment {
     required String status,
     required List<String> environmentalServices,
     required String ownerName,
+    required String ownerCpf,
     required bool hasCAR,
     String? carNumber,
     required Location location,
@@ -257,12 +287,13 @@ class SpringAssessment {
     DateTime? submittedAt,
   }) {
     return SpringAssessment(
-      id: ObjectId.parse(id),
-      springId: ObjectId.parse(springId),
-      evaluatorId: ObjectId.parse(evaluatorId),
+      id: id,
+      springId: springId,
+      evaluatorId: evaluatorId,
       status: status,
       environmentalServices: environmentalServices,
       ownerName: ownerName,
+      ownerCpf: ownerCpf,
       hasCAR: hasCAR,
       carNumber: carNumber,
       location: location,

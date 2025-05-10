@@ -1,9 +1,8 @@
-import 'package:mongo_dart/mongo_dart.dart';
 import 'package:agua_viva/models/location.dart';
 
 class Spring {
-  final ObjectId id;
-  final ObjectId ownerId;
+  final String id;
+  final String ownerId;
   final String ownerName;
   final Location location;
   final double altitude;
@@ -32,14 +31,13 @@ class Spring {
     required this.updatedAt,
   });
 
-  // Getters para IDs como String
-  String get idString => id.toHexString();
-  String get ownerIdString => ownerId.toHexString();
+  String get idString => id;
+  String get ownerIdString => ownerId;
 
   Map<String, dynamic> toJson() {
     return {
-      '_id': id.toHexString(),
-      'ownerId': ownerId.toHexString(),
+      'id': id,
+      'ownerId': ownerId,
       'ownerName': ownerName,
       'location': location.toJson(),
       'altitude': altitude,
@@ -56,19 +54,21 @@ class Spring {
 
   factory Spring.fromJson(Map<String, dynamic> json) {
     return Spring(
-      id: json['_id'] is String ? ObjectId.parse(json['_id']) : json['_id'],
-      ownerId: json['ownerId'] is String ? ObjectId.parse(json['ownerId']) : json['ownerId'],
-      ownerName: json['ownerName'],
-      location: Location.fromJson(json['location']),
-      altitude: json['altitude'].toDouble(),
-      municipality: json['municipality'],
-      reference: json['reference'],
-      hasCAR: json['hasCAR'],
+      id: json['id'] ?? json['_id'] ?? '',
+      ownerId: json['ownerId'] ?? '',
+      ownerName: json['ownerName'] ?? '',
+      location: json['location'] != null 
+        ? Location.fromJson(json['location']) 
+        : Location(latitude: 0, longitude: 0),
+      altitude: (json['altitude'] ?? 0).toDouble(),
+      municipality: json['municipality'] ?? '',
+      reference: json['reference'] ?? '',
+      hasCAR: json['hasCAR'] ?? false,
       carNumber: json['carNumber'],
-      hasAPP: json['hasAPP'],
-      appStatus: json['appStatus'],
-      createdAt: json['createdAt'] is String ? DateTime.parse(json['createdAt']) : json['createdAt'],
-      updatedAt: json['updatedAt'] is String ? DateTime.parse(json['updatedAt']) : json['updatedAt'],
+      hasAPP: json['hasAPP'] ?? false,
+      appStatus: json['appStatus'] ?? '',
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
     );
   }
 
@@ -89,8 +89,8 @@ class Spring {
     required DateTime updatedAt,
   }) {
     return Spring(
-      id: ObjectId.parse(id),
-      ownerId: ObjectId.parse(ownerId),
+      id: id,
+      ownerId: ownerId,
       ownerName: ownerName,
       location: location,
       altitude: altitude,

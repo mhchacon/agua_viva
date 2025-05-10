@@ -4,6 +4,7 @@ import 'package:agua_viva/models/assessment_model.dart';
 import 'package:agua_viva/services/assessment_service.dart';
 import 'package:agua_viva/services/report_service.dart';
 import 'package:agua_viva/services/auth_service.dart';
+import 'package:agua_viva/models/user_model.dart';
 
 class AssessmentDetailsScreen extends StatefulWidget {
   final String assessmentId;
@@ -54,7 +55,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       
       if (assessment != null) {
         setState(() {
-          _assessment = assessment as SpringAssessment;
+          _assessment = assessment;
           _selectedStatus = assessment.status;
         });
       }
@@ -84,7 +85,6 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       await _assessmentService.updateAssessmentStatus(
         _assessment!.idString,
         _selectedStatus,
-        _justificationController.text.isEmpty ? null : _justificationController.text,
       );
 
       if (!mounted) return;
@@ -149,10 +149,50 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = Provider.of<User?>(context);
+    final isAdmin = user?.role == 'admin';
+    final isEvaluator = user?.role == 'evaluator';
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detalhes da Avaliação'),
         actions: [
+          if (isAdmin || isEvaluator)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                try {
+                  await _assessmentService.updateAssessmentStatus(
+                    _assessment!.idString,
+                    value,
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Status atualizado com sucesso!')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Erro ao atualizar status: $e')),
+                    );
+                  }
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'pending',
+                  child: Text('Pendente'),
+                ),
+                const PopupMenuItem(
+                  value: 'approved',
+                  child: Text('Aprovado'),
+                ),
+                const PopupMenuItem(
+                  value: 'rejected',
+                  child: Text('Rejeitado'),
+                ),
+              ],
+            ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: _generateReport,
@@ -201,15 +241,15 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                         title: _assessment!.hasCAR ? 'Sim' : 'Não',
                         subtitle: 'Área com CAR',
                         icon: Icons.assignment,
-                        iconColor: _assessment!.hasCAR ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
+                        iconColor: _assessment!.hasCAR ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
                       ),
                       _buildDetailCard(
                         title: _assessment!.hasAPP ? _assessment!.appStatus : 'Não possui',
                         subtitle: 'Área de APP',
                         icon: Icons.park,
                         iconColor: _assessment!.hasAPP 
-                            ? (_assessment!.appStatus == 'Bom' ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2)) 
-                            : Colors.red.withValues(alpha: 0.2),
+                            ? (_assessment!.appStatus == 'Bom' ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2)) 
+                            : Colors.red.withOpacity(0.2),
                       ),
 
                       const SizedBox(height: 16),
@@ -261,10 +301,10 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withValues(alpha: 0.2),
+                          color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withValues(alpha: 0.3),
+                            color: _getEnvironmentalColor(_assessment!.hydroEnvironmentalTotal).withOpacity(0.3),
                           ),
                         ),
                         child: Column(
@@ -460,9 +500,9 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Row(
         children: [
@@ -493,7 +533,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -514,7 +554,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -542,7 +582,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
@@ -550,7 +590,7 @@ class _AssessmentDetailsScreenState extends State<AssessmentDetailsScreen> {
           children: [
             Icon(
               value ? Icons.check_circle : Icons.cancel,
-              color: value ? Colors.green.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
+              color: value ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
             ),
             const SizedBox(width: 12),
             Expanded(

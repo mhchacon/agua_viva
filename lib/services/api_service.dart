@@ -35,10 +35,12 @@ class ApiService {
         _authToken = data['token'];
         return data;
       } else {
-        throw Exception('Falha no login: ${response.body}');
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Falha no login');
       }
     } catch (e) {
-      throw Exception('Erro ao conectar com o servidor: $e');
+      _logger.error('Erro ao conectar com o servidor: $e');
+      rethrow;
     }
   }
 
@@ -143,7 +145,8 @@ class ApiService {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else {
-      throw Exception('Erro na requisição: ${response.body}');
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Erro na requisição');
     }
   }
 
@@ -152,13 +155,25 @@ class ApiService {
       final List<dynamic> data = jsonDecode(response.body);
       return data.cast<Map<String, dynamic>>();
     } else {
-      throw Exception('Erro na requisição: ${response.body}');
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Erro na requisição');
     }
   }
 
   // Logout
-  void logout() {
-    _authToken = null;
+  Future<void> logout() async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/auth/logout'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_authToken',
+        },
+      );
+      _authToken = null;
+    } catch (e) {
+      _logger.error('Erro ao fazer logout: $e');
+    }
   }
 
   Future<dynamic> get(String endpoint) async {
@@ -167,7 +182,20 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
       );
-      return _handleResponse(response);
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          return data;
+        } else if (data is Map<String, dynamic>) {
+          return data;
+        } else {
+          throw Exception('Formato de resposta inválido');
+        }
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Erro na requisição GET');
+      }
     } catch (e) {
       _logger.error('Erro na requisição GET: $e');
       rethrow;
@@ -181,7 +209,20 @@ class ApiService {
         headers: _headers,
         body: jsonEncode(data),
       );
-      return _handleResponse(response);
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final responseData = jsonDecode(response.body);
+        if (responseData is List) {
+          return responseData;
+        } else if (responseData is Map<String, dynamic>) {
+          return responseData;
+        } else {
+          throw Exception('Formato de resposta inválido');
+        }
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Erro na requisição POST');
+      }
     } catch (e) {
       _logger.error('Erro na requisição POST: $e');
       rethrow;
@@ -195,7 +236,20 @@ class ApiService {
         headers: _headers,
         body: jsonEncode(data),
       );
-      return _handleResponse(response);
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final responseData = jsonDecode(response.body);
+        if (responseData is List) {
+          return responseData;
+        } else if (responseData is Map<String, dynamic>) {
+          return responseData;
+        } else {
+          throw Exception('Formato de resposta inválido');
+        }
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Erro na requisição PUT');
+      }
     } catch (e) {
       _logger.error('Erro na requisição PUT: $e');
       rethrow;
@@ -208,7 +262,13 @@ class ApiService {
         Uri.parse('$baseUrl$endpoint'),
         headers: _headers,
       );
-      _handleResponse(response);
+      
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return;
+      } else {
+        final error = jsonDecode(response.body);
+        throw Exception(error['message'] ?? 'Erro na requisição DELETE');
+      }
     } catch (e) {
       _logger.error('Erro na requisição DELETE: $e');
       rethrow;

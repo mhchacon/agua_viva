@@ -1,6 +1,7 @@
 class Proprietario {
   final String id;
   final String nomeCompleto;
+  final String cpf;
   final String numeroCAR;
   final String dadosPropriedade;
   final bool temNascente;
@@ -22,6 +23,7 @@ class Proprietario {
   Proprietario({
     required this.id,
     required this.nomeCompleto,
+    required this.cpf,
     required this.numeroCAR,
     required this.dadosPropriedade,
     required this.temNascente,
@@ -45,6 +47,7 @@ class Proprietario {
     return {
       'id': id,
       'nomeCompleto': nomeCompleto,
+      'cpf': cpf,
       'numeroCAR': numeroCAR,
       'dadosPropriedade': dadosPropriedade,
       'temNascente': temNascente,
@@ -69,6 +72,7 @@ class Proprietario {
     return Proprietario(
       id: json['id'],
       nomeCompleto: json['nomeCompleto'],
+      cpf: json['cpf'],
       numeroCAR: json['numeroCAR'],
       dadosPropriedade: json['dadosPropriedade'],
       temNascente: json['temNascente'],

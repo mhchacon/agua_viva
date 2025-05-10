@@ -29,6 +29,16 @@ exports.getAssessmentById = async (req, res) => {
   }
 };
 
+exports.getAssessmentsByOwnerCpf = async (req, res) => {
+  try {
+    const { cpf } = req.params;
+    const assessments = await Assessment.find({ ownerCpf: cpf });
+    res.json(assessments);
+  } catch (err) {
+    res.status(500).json({ message: 'Erro ao buscar avaliações do proprietário', error: err });
+  }
+};
+
 exports.updateAssessment = async (req, res) => {
   try {
     const assessment = await Assessment.findByIdAndUpdate(req.params.id, req.body, { new: true });

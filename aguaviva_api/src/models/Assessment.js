@@ -6,11 +6,12 @@ const locationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const assessmentSchema = new mongoose.Schema({
-  springId: { type: mongoose.Schema.Types.ObjectId, ref: 'Spring', required: true },
-  evaluatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  springId: { type: mongoose.Schema.Types.ObjectId, ref: 'Spring' },
+  evaluatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['draft', 'pending', 'approved', 'rejected'], default: 'draft' },
   environmentalServices: [{ type: String }],
   ownerName: { type: String, required: true },
+  ownerCpf: { type: String, required: true, index: true },
   hasCAR: { type: Boolean, required: true },
   carNumber: { type: String },
   location: { type: locationSchema, required: true },

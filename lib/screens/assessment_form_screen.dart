@@ -5,6 +5,10 @@ import 'package:agua_viva/services/assessment_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:agua_viva/screens/review_and_submit_screen.dart';
+import 'package:agua_viva/utils/logger.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'package:agua_viva/services/location_service.dart';
 
 class AssessmentFormScreen extends StatefulWidget {
   final String? existingAssessmentId;
@@ -26,6 +30,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   // Form data
   // Owner Information
   final TextEditingController _ownerNameController = TextEditingController();
+  final TextEditingController _ownerCpfController = TextEditingController();
   bool _hasCAR = false;
   final TextEditingController _carNumberController = TextEditingController();
   
@@ -119,6 +124,8 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   DateTime? _selectedFlowRateDate;
   DateTime? _selectedPhotoDate;
 
+  final _logger = AppLogger();
+
   // Função utilitária para exibir o DatePicker
   Future<void> _selectDate(BuildContext context, DateTime? initialDate, Function(DateTime) onDateSelected) async {
     final DateTime? picked = await showDatePicker(
@@ -143,15 +150,21 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
+        _logger.info('Iniciando AssessmentFormScreen...');
         _assessmentService = Provider.of<AssessmentService>(context, listen: false);
+        _logger.info('AssessmentService obtido com sucesso.');
         if (widget.existingAssessmentId != null) {
+          _logger.info('Carregando avaliação existente: ${widget.existingAssessmentId}');
           await _loadExistingAssessment();
         } else {
           setState(() {
             _dataLoaded = true;
           });
+          _logger.info('Formulário novo, dados carregados.');
         }
-      } catch (e) {
+      } catch (e, stack) {
+        _logger.error('Erro ao inicializar formulário: $e');
+        print(stack);
         if (mounted) {
           setState(() {
             _dataLoaded = true;
@@ -167,6 +180,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
   @override
   void dispose() {
     _ownerNameController.dispose();
+    _ownerCpfController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
     _altitudeController.dispose();
@@ -182,11 +196,13 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     });
 
     try {
+      _logger.info('Buscando avaliação no banco...');
       final assessment = await _assessmentService.getAssessmentById(widget.existingAssessmentId!);
-      
+      _logger.info('Avaliação recebida: $assessment');
       if (assessment != null) {
         // Set all form fields from assessment data
         _ownerNameController.text = assessment.ownerName;
+        _ownerCpfController.text = assessment.ownerCpf;
         _hasCAR = assessment.hasCAR;
         _carNumberController.text = assessment.carNumber ?? '';
         
@@ -229,8 +245,11 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         
         _photoReferences = assessment.photoReferences;
         _recommendations = assessment.recommendations;
+        _logger.info('Campos do formulário preenchidos com dados da avaliação.');
       }
-    } catch (e) {
+    } catch (e, stack) {
+      _logger.error('Erro ao carregar dados da avaliação: $e');
+      print(stack);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao carregar dados: $e')),
@@ -241,6 +260,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
         _isLoading = false;
         _dataLoaded = true;
       });
+      _logger.info('Finalizado carregamento dos dados. _dataLoaded=$_dataLoaded');
     }
   }
 
@@ -288,6 +308,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
       final assessment = SpringAssessment.fromJson({
         'id': const Uuid().v4(),
         'ownerName': _ownerNameController.text,
+        'ownerCpf': _ownerCpfController.text,
         'hasCAR': _hasCAR,
         'carNumber': _carNumberController.text,
         'location': {
@@ -332,12 +353,11 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
       await _assessmentService.saveAssessment(assessment);
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avaliação salva com sucesso!')),
-        );
+        _logger.info('Avaliação salva com sucesso!');
         Navigator.pop(context);
       }
     } catch (e) {
+      _logger.error('Erro ao salvar avaliação: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erro ao salvar avaliação: $e')),
@@ -350,28 +370,57 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     }
   }
 
-  Future<void> _uploadPhoto() async {
+  Future<void> _pickImage() async {
     try {
-      final imagePicker = ImagePicker();
-      final pickedFile = await imagePicker.pickImage(source: ImageSource.camera);
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1024,
+      );
       
-      if (pickedFile != null) {
-        final photoId = const Uuid().v4();
-        final photoPath = 'photos/$photoId.jpg';
-        
-        // Upload para o servidor
-        await _assessmentService.uploadPhoto(pickedFile.path, photoPath);
-        
+      if (image != null) {
         setState(() {
-          _photoReferences.add(photoPath);
-          _selectedPhotoDate = DateTime.now();
+          _isLoading = true;
         });
+
+        try {
+          final String photoId = const Uuid().v4();
+          final String photoPath = 'photos/$photoId.jpg';
+          
+          await _assessmentService.uploadPhoto(image.path, photoPath);
+          
+          setState(() {
+            _photoReferences.add(photoPath);
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Foto enviada com sucesso!')),
+            );
+          }
+        } catch (e) {
+          _logger.error('Erro ao fazer upload da foto: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Erro ao enviar foto: $e')),
+            );
+          }
+        } finally {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+        }
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao capturar foto: $e')),
-      );
+      _logger.error('Erro ao capturar foto: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao capturar foto: $e')),
+        );
+      }
     }
   }
 
@@ -397,120 +446,125 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Stepper(
-          type: StepperType.vertical,
-          currentStep: _currentStep,
-          onStepContinue: () {
-            final lastStep = _currentStep >= 7;
-            if (lastStep) {
-              // Montar dados para revisão
-              final assessmentData = {
-                'ownerName': _ownerNameController.text,
-                'hasCAR': _hasCAR,
-                'carNumber': _carNumberController.text,
-                'latitude': _latitudeController.text,
-                'longitude': _longitudeController.text,
-                'altitude': _altitudeController.text,
-                'municipality': _municipalityController.text,
-                'reference': _referenceController.text,
-                'hasAPP': _hasAPP,
-                'appStatus': _appStatus,
-                'hasWaterFlow': _hasWaterFlow,
-                'hasWetlandVegetation': _hasWetlandVegetation,
-                'hasFavorableTopography': _hasFavorableTopography,
-                'hasSoilSaturation': _hasSoilSaturation,
-                'springType': _springType,
-                'springCharacteristic': _springCharacteristic,
-                'diffusePoints': _diffusePoints,
-                'flowRegime': _flowRegime,
-                'ownerResponse': _ownerResponse,
-                'informationSource': _informationSource,
-                'hydroEnvironmentalScores': _hydroEnvironmentalScores,
-                'hydroEnvironmentalTotal': _calculateHydroEnvironmentalTotal(),
-                'surroundingConditions': _surroundingConditions,
-                'springConditions': _springConditions,
-                'anthropicImpacts': _anthropicImpacts,
-                'riskTotal': _calculateTotalRiskScore(),
-                'generalState': _generalState,
-                'primaryUse': _primaryUse,
-                'hasWaterAnalysis': _hasWaterAnalysis,
-                'analysisDate': _analysisDate,
-                'analysisParameters': _analysisParameters,
-                'hasFlowRate': _hasFlowRate,
-                'flowRateValue': _flowRateValue,
-                'flowRateDate': _flowRateDate,
-                'photoReferences': _photoReferences,
-                'recommendations': _recommendations,
-              };
-              final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
-              final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
-              final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ReviewAndSubmitScreen(
-                    assessmentData: assessmentData,
-                    classification: classificacaoFinal,
-                  ),
+      body: _buildForm(),
+    );
+  }
+
+  Widget _buildForm() {
+    return Form(
+      key: _formKey,
+      child: Stepper(
+        type: StepperType.vertical,
+        currentStep: _currentStep,
+        onStepContinue: () {
+          final lastStep = _currentStep >= 7;
+          if (lastStep) {
+            // Montar dados para revisão
+            final assessmentData = {
+              'ownerName': _ownerNameController.text,
+              'ownerCpf': _ownerCpfController.text,
+              'hasCAR': _hasCAR,
+              'carNumber': _carNumberController.text,
+              'latitude': _latitudeController.text,
+              'longitude': _longitudeController.text,
+              'altitude': _altitudeController.text,
+              'municipality': _municipalityController.text,
+              'reference': _referenceController.text,
+              'hasAPP': _hasAPP,
+              'appStatus': _appStatus,
+              'hasWaterFlow': _hasWaterFlow,
+              'hasWetlandVegetation': _hasWetlandVegetation,
+              'hasFavorableTopography': _hasFavorableTopography,
+              'hasSoilSaturation': _hasSoilSaturation,
+              'springType': _springType,
+              'springCharacteristic': _springCharacteristic,
+              'diffusePoints': _diffusePoints,
+              'flowRegime': _flowRegime,
+              'ownerResponse': _ownerResponse,
+              'informationSource': _informationSource,
+              'hydroEnvironmentalScores': _hydroEnvironmentalScores,
+              'hydroEnvironmentalTotal': _calculateHydroEnvironmentalTotal(),
+              'surroundingConditions': _surroundingConditions,
+              'springConditions': _springConditions,
+              'anthropicImpacts': _anthropicImpacts,
+              'riskTotal': _calculateTotalRiskScore(),
+              'generalState': _generalState,
+              'primaryUse': _primaryUse,
+              'hasWaterAnalysis': _hasWaterAnalysis,
+              'analysisDate': _analysisDate,
+              'analysisParameters': _analysisParameters,
+              'hasFlowRate': _hasFlowRate,
+              'flowRateValue': _flowRateValue,
+              'flowRateDate': _flowRateDate,
+              'photoReferences': _photoReferences,
+              'recommendations': _recommendations,
+            };
+            final hidroClass = _getEnvironmentalClassification(_calculateHydroEnvironmentalTotal());
+            final riscoClass = _getRiskLevel(_calculateTotalRiskScore());
+            final classificacaoFinal = _getFinalClassification(hidroClass, riscoClass);
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ReviewAndSubmitScreen(
+                  assessmentData: assessmentData,
+                  classification: classificacaoFinal,
                 ),
-              );
-            } else {
-              setState(() {
-                _currentStep += 1;
-              });
-            }
-          },
-          onStepCancel: () {
-            if (_currentStep > 0) {
-              setState(() {
-                _currentStep -= 1;
-              });
-            }
-          },
-          controlsBuilder: (context, details) {
-            final isLastStep = _currentStep == 7;
-            return Padding(
-              padding: const EdgeInsets.only(top: 16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: details.onStepContinue,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isLastStep 
-                            ? Theme.of(context).colorScheme.secondary 
-                            : Theme.of(context).colorScheme.primary,
-                      ),
-                      child: Text(
-                        isLastStep ? 'Enviar' : 'Próximo',
-                      ),
-                    ),
-                  ),
-                  if (_currentStep > 0) ...[  
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: details.onStepCancel,
-                        child: const Text('Voltar'),
-                      ),
-                    ),
-                  ],
-                ],
               ),
             );
-          },
-          steps: [
-            _buildIdentificationStep(),
-            _buildSpringAnalysisStep(),
-            _buildSpringTypeStep(),
-            _buildEnvironmentalAssessmentStep(),
-            _buildSurroundingConditionsStep(),
-            _buildSpringConditionsStep(),
-            _buildAnthropicImpactsStep(),
-            _buildFinalAssessmentStep(),
-          ],
-        ),
+          } else {
+            setState(() {
+              _currentStep += 1;
+            });
+          }
+        },
+        onStepCancel: () {
+          if (_currentStep > 0) {
+            setState(() {
+              _currentStep -= 1;
+            });
+          }
+        },
+        controlsBuilder: (context, details) {
+          final isLastStep = _currentStep == 7;
+          return Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: details.onStepContinue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isLastStep 
+                          ? Theme.of(context).colorScheme.secondary 
+                          : Theme.of(context).colorScheme.primary,
+                    ),
+                    child: Text(
+                      isLastStep ? 'Enviar' : 'Próximo',
+                    ),
+                  ),
+                ),
+                if (_currentStep > 0) ...[  
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: details.onStepCancel,
+                      child: const Text('Voltar'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+        steps: [
+          _buildIdentificationStep(),
+          _buildSpringAnalysisStep(),
+          _buildSpringTypeStep(),
+          _buildEnvironmentalAssessmentStep(),
+          _buildSurroundingConditionsStep(),
+          _buildSpringConditionsStep(),
+          _buildAnthropicImpactsStep(),
+          _buildFinalAssessmentStep(),
+        ],
       ),
     );
   }
@@ -530,6 +584,26 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             validator: (value) {
               if (value == null || value.isEmpty) {
                 return 'Por favor, informe o nome do proprietário';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _ownerCpfController,
+            decoration: const InputDecoration(
+              labelText: 'CPF do proprietário',
+              border: OutlineInputBorder(),
+              hintText: 'Digite apenas os números',
+            ),
+            keyboardType: TextInputType.number,
+            maxLength: 11,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Por favor, informe o CPF do proprietário';
+              }
+              if (value.length != 11) {
+                return 'O CPF deve ter 11 dígitos';
               }
               return null;
             },
@@ -572,48 +646,46 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _latitudeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Latitude',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe a latitude';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextFormField(
-                  controller: _longitudeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Longitude',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe a longitude';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-            ],
+          ElevatedButton.icon(
+            onPressed: _getCurrentLocation,
+            icon: const Icon(Icons.my_location),
+            label: const Text('Obter Localização Atual'),
           ),
           const SizedBox(height: 16),
           TextFormField(
+            controller: _latitudeController,
+            decoration: const InputDecoration(
+              labelText: 'Latitude',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Informe a latitude';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _longitudeController,
+            decoration: const InputDecoration(
+              labelText: 'Longitude',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Informe a longitude';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
             controller: _altitudeController,
             decoration: const InputDecoration(
-              labelText: 'Altitude (m)',
+              labelText: 'Altitude (metros)',
               border: OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
@@ -624,7 +696,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           TextFormField(
             controller: _municipalityController,
             decoration: const InputDecoration(
@@ -638,11 +710,11 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           TextFormField(
             controller: _referenceController,
             decoration: const InputDecoration(
-              labelText: 'Referência (sítio, distrito ou outro ponto de apoio)',
+              labelText: 'Referência',
               border: OutlineInputBorder(),
             ),
             validator: (value) {
@@ -1358,14 +1430,31 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
     String riskKey,
     Map<String, int> riskMap,
   ) {
+    // Garante valor inicial válido
+    if (riskMap[riskKey] == null || !options.keys.contains(riskMap[riskKey])) {
+      riskMap[riskKey] = options.keys.first;
+    }
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: const Padding(
-        padding: EdgeInsets.all(12.0),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ... existing code ...
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ...options.entries.map((entry) {
+              return RadioListTile<int>(
+                title: Text(entry.value),
+                value: entry.key,
+                groupValue: riskMap[riskKey],
+                onChanged: (value) {
+                  setState(() {
+                    riskMap[riskKey] = value!;
+                  });
+                },
+                dense: true,
+              );
+            }).toList(),
           ],
         ),
       ),
@@ -1633,7 +1722,7 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
           ElevatedButton.icon(
             icon: const Icon(Icons.camera_alt),
             label: const Text('Adicionar foto'),
-            onPressed: _uploadPhoto,
+            onPressed: _pickImage,
           ),
           const SizedBox(height: 8),
           InkWell(
@@ -1690,6 +1779,120 @@ class _AssessmentFormScreenState extends State<AssessmentFormScreen> {
       ),
       isActive: _currentStep >= 7,
       state: _currentStep > 7 ? StepState.complete : StepState.indexed,
+    );
+  }
+
+  // Adicionar função para obter localização
+  Future<void> _getCurrentLocation() async {
+    final position = await LocationService.getCurrentLocation(context);
+    if (position != null) {
+      setState(() {
+        _latitudeController.text = position.latitude.toString();
+        _longitudeController.text = position.longitude.toString();
+        // A altitude vem em metros
+        _altitudeController.text = position.altitude.toString();
+      });
+    }
+  }
+
+  // Modificar o widget que mostra os campos de localização
+  Widget _buildLocationFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Localização',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          onPressed: _getCurrentLocation,
+          icon: const Icon(Icons.my_location),
+          label: const Text('Obter Localização Atual'),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _latitudeController,
+          decoration: const InputDecoration(
+            labelText: 'Latitude',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Informe a latitude';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _longitudeController,
+          decoration: const InputDecoration(
+            labelText: 'Longitude',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Informe a longitude';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _altitudeController,
+          decoration: const InputDecoration(
+            labelText: 'Altitude (metros)',
+            border: OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Informe a altitude';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _municipalityController,
+          decoration: const InputDecoration(
+            labelText: 'Município',
+            border: OutlineInputBorder(),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Informe o município';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _referenceController,
+          decoration: const InputDecoration(
+            labelText: 'Referência',
+            border: OutlineInputBorder(),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Informe uma referência';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  // Modificar o Step de localização para usar o novo widget
+  Step _buildLocationStep() {
+    return Step(
+      title: const Text('Localização'),
+      content: _buildLocationFields(),
+      isActive: _currentStep >= 1,
     );
   }
 }

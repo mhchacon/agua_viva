@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Este aplicativo precisa de acesso à sua localização para registrar a posição da nascente.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Este aplicativo precisa de acesso à sua localização para registrar a posição da nascente.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Este aplicativo precisa de acesso à sua localização para registrar a posição da nascente.</string>
 </dict>
 </plist>

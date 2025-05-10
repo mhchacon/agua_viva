@@ -2,45 +2,31 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
+import 'package:agua_viva/services/api_service.dart';
+import 'package:agua_viva/utils/logger.dart';
 
-enum UserRole { admin, evaluator, owner }
+enum UserRole { admin, evaluator, owner, proprietario }
 
 class AuthService extends ChangeNotifier {
   // Current User state
   String? _currentUserId;
   String? _currentUserEmail;
+  String? _currentUserName;
   UserRole? _currentUserRole;
   bool _isAuthenticated = false;
   
   // For simulating stream of auth state changes
   final StreamController<bool> _authStateController = StreamController<bool>.broadcast();
+  final _logger = AppLogger();
+  final _apiService = ApiService();
   
   // Getters
   bool get isAuthenticated => _isAuthenticated;
   String? get currentUserId => _currentUserId;
   String? get currentUserEmail => _currentUserEmail;
+  String? get currentUserName => _currentUserName;
   UserRole? get currentUserRole => _currentUserRole;
   Stream<bool> get authStateChanges => _authStateController.stream;
-  
-  // Demo credentials for MVP
-  static const Map<String, Map<String, dynamic>> _demoUsers = {
-    'teste@psa.com': {
-      'password': '12345',
-      'role': UserRole.admin,
-      'name': 'Administrador Demo'
-    },
-    'avaliador@psa.com': {
-      'password': '12345',
-      'role': UserRole.evaluator,
-      'name': 'Avaliador Demo'
-    },
-    'proprietario@psa.com': {
-      'password': '12345',
-      'role': UserRole.owner,
-      'name': 'Proprietário Demo'
-    },
-  };
   
   AuthService() {
     // Try to restore session at initialization
@@ -56,21 +42,25 @@ class AuthService extends ChangeNotifier {
       final user = jsonDecode(userData);
       _currentUserId = user['id'];
       _currentUserEmail = user['email'];
-      _currentUserRole = _stringToUserRole(user['role']);
+      _currentUserName = user['name'] ?? user['nomeCompleto'];
+      _currentUserRole = _stringToUserRole(user['role'] ?? user['tipo']);
       _isAuthenticated = true;
       _authStateController.add(true);
       notifyListeners();
     }
   }
   
-  // Sign in with email and password
+  // Sign in with email and password for regular users
   Future<bool> signInWithEmailAndPassword(String email, String password) async {
     try {
-      // Check if this is a demo user
-      if (_demoUsers.containsKey(email) && _demoUsers[email]!['password'] == password) {
-        _currentUserId = const Uuid().v4(); // Generate random ID
-        _currentUserEmail = email;
-        _currentUserRole = _demoUsers[email]!['role'];
+      final response = await _apiService.login(email, password);
+      
+      if (response['user'] != null) {
+        final user = response['user'];
+        _currentUserId = user['id'];
+        _currentUserEmail = user['email'];
+        _currentUserName = user['name'];
+        _currentUserRole = _stringToUserRole(user['role']);
         _isAuthenticated = true;
         
         // Save to SharedPreferences
@@ -78,8 +68,8 @@ class AuthService extends ChangeNotifier {
         await prefs.setString('currentUser', jsonEncode({
           'id': _currentUserId,
           'email': _currentUserEmail,
-          'role': _currentUserRole.toString().split('.').last,
-          'name': _demoUsers[email]!['name'],
+          'name': _currentUserName,
+          'role': user['role'],
         }));
         
         _authStateController.add(true);
@@ -87,11 +77,48 @@ class AuthService extends ChangeNotifier {
         return true;
       }
       
-      // Add user registration logic for custom users here
-      
+      _logger.error('Falha na autenticação: credenciais inválidas');
       return false;
     } catch (e) {
-      print('Sign in error: $e');
+      _logger.error('Erro ao fazer login: $e');
+      return false;
+    }
+  }
+
+  // Sign in for proprietários
+  Future<bool> signInProprietario(String email, String senha) async {
+    try {
+      final response = await _apiService.post('/proprietarios/login', {
+        'email': email,
+        'senha': senha,
+      });
+      
+      if (response['proprietario'] != null) {
+        final proprietario = response['proprietario'];
+        _currentUserId = proprietario['id'];
+        _currentUserEmail = proprietario['email'];
+        _currentUserName = proprietario['nomeCompleto'];
+        _currentUserRole = UserRole.proprietario;
+        _isAuthenticated = true;
+        
+        // Save to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('currentUser', jsonEncode({
+          'id': _currentUserId,
+          'email': _currentUserEmail,
+          'nomeCompleto': _currentUserName,
+          'tipo': 'proprietario',
+        }));
+        
+        _authStateController.add(true);
+        notifyListeners();
+        return true;
+      }
+      
+      _logger.error('Falha na autenticação: credenciais inválidas');
+      return false;
+    } catch (e) {
+      _logger.error('Erro ao fazer login como proprietário: $e');
       return false;
     }
   }
@@ -101,6 +128,7 @@ class AuthService extends ChangeNotifier {
     try {
       _currentUserId = null;
       _currentUserEmail = null;
+      _currentUserName = null;
       _currentUserRole = null;
       _isAuthenticated = false;
       
@@ -108,15 +136,17 @@ class AuthService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('currentUser');
       
+      _apiService.logout();
+      
       _authStateController.add(false);
       notifyListeners();
     } catch (e) {
-      print('Sign out error: $e');
+      _logger.error('Erro ao fazer logout: $e');
     }
   }
   
   // Helper method to convert string to UserRole enum
-  UserRole? _stringToUserRole(String role) {
+  UserRole? _stringToUserRole(String? role) {
     switch (role) {
       case 'admin':
         return UserRole.admin;
@@ -124,23 +154,11 @@ class AuthService extends ChangeNotifier {
         return UserRole.evaluator;
       case 'owner':
         return UserRole.owner;
+      case 'proprietario':
+        return UserRole.proprietario;
       default:
         return null;
     }
-  }
-  
-  // For demo purposes, provide a method to get all users
-  Future<List<Map<String, dynamic>>> getAllUsers() async {
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
-    
-    return _demoUsers.entries.map((entry) {
-      return {
-        'id': const Uuid().v4(),
-        'email': entry.key,
-        'name': entry.value['name'],
-        'role': entry.value['role'].toString().split('.').last,
-      };
-    }).toList();
   }
   
   // Get current user data

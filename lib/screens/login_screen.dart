@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:agua_viva/services/auth_service.dart';
 import 'package:agua_viva/screens/dashboard_screen.dart';
 import 'package:agua_viva/theme.dart';
+import 'package:agua_viva/models/user_model.dart';
+import 'package:agua_viva/screens/cadastro_proprietario_screen.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -42,7 +44,7 @@ class RoleSelectionScreen extends StatelessWidget {
               Text(
                 'PSA - Programa de Pagamento de Serviços Ambientais',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withAlpha(230),
                     ),
                 textAlign: TextAlign.center,
               ),
@@ -74,7 +76,7 @@ class RoleSelectionScreen extends StatelessWidget {
                       title: 'Proprietário',
                       subtitle: 'Acompanhar nascentes',
                       icon: Icons.person_rounded,
-                      role: UserRole.owner,
+                      role: UserRole.proprietario,
                     ),
                   ],
                 ),
@@ -110,7 +112,7 @@ class RoleSelectionScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  color: Theme.of(context).colorScheme.primary.withAlpha(25),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -133,7 +135,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(context).colorScheme.onSurface.withAlpha(179),
                           ),
                     ),
                   ],
@@ -176,16 +178,18 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     switch (widget.selectedRole) {
       case UserRole.admin:
-        _emailController.text = 'admin@psa.com';
-        _passwordController.text = '12345678';
+        _emailController.text = 'admin@agua-viva.com';
+        _passwordController.text = 'admin123';
         break;
       case UserRole.evaluator:
-        _emailController.text = 'avaliador@psa.com';
-        _passwordController.text = '12345678';
+        _emailController.text = 'avaliador@agua-viva.com';
+        _passwordController.text = 'avaliador123';
         break;
-      case UserRole.owner:
-        _emailController.text = 'proprietario@psa.com';
-        _passwordController.text = '12345678';
+      case UserRole.proprietario:
+        _emailController.text = 'proprietario@agua-viva.com';
+        _passwordController.text = 'proprietario123';
+        break;
+      default:
         break;
     }
   }
@@ -201,38 +205,46 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
+        _errorMessage = null;
       });
 
       try {
-        // Simular autenticação
-        await Future.delayed(const Duration(seconds: 1));
-
-        // Determinar o perfil do usuário com base no email
-        UserRole userRole;
-        if (_emailController.text == 'admin@psa.com') {
-          userRole = UserRole.admin;
-        } else if (_emailController.text == 'avaliador@psa.com') {
-          userRole = UserRole.evaluator;
+        final authService = Provider.of<AuthService>(context, listen: false);
+        bool success;
+        
+        if (widget.selectedRole == UserRole.proprietario) {
+          success = await authService.signInProprietario(
+            _emailController.text,
+            _passwordController.text,
+          );
         } else {
-          userRole = UserRole.owner;
+          success = await authService.signInWithEmailAndPassword(
+            _emailController.text,
+            _passwordController.text,
+          );
         }
 
         if (!mounted) return;
 
-        // Navegar para o dashboard com o perfil do usuário
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => DashboardScreen(userRole: userRole),
-          ),
-        );
+        if (success) {
+          // Navegar para o dashboard com o perfil do usuário
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => DashboardScreen(
+                userRole: authService.currentUserRole ?? UserRole.admin,
+              ),
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Email ou senha incorretos';
+          });
+        }
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Erro ao fazer login. Tente novamente.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _errorMessage = 'Erro ao fazer login. Tente novamente.';
+        });
       } finally {
         if (mounted) {
           setState(() {
@@ -284,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'PSA - Programa de Pagamento de Serviços Ambientais',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withAlpha(230),
                         ),
                     textAlign: TextAlign.center,
                   ),
@@ -392,12 +404,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                     )
                                   : const Text('Entrar'),
                             ),
-                            if (widget.selectedRole == UserRole.owner) ...[
+                            if (widget.selectedRole == UserRole.proprietario) ...[
                               const SizedBox(height: 16),
                               TextButton(
                                 onPressed: () {
-                                  // Navegar para a tela de registro
-                                  Navigator.of(context).pushNamed('/register');
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const CadastroProprietarioScreen(),
+                                    ),
+                                  );
                                 },
                                 child: const Text('Não tem uma conta? Cadastre-se'),
                               ),
@@ -422,6 +437,8 @@ class _LoginScreenState extends State<LoginScreen> {
         return 'Administrador';
       case UserRole.evaluator:
         return 'Avaliador';
+      case UserRole.proprietario:
+        return 'Proprietário';
       case UserRole.owner:
         return 'Proprietário';
     }
