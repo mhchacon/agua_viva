@@ -151,7 +151,7 @@ O Água Viva se destaca como solução inovadora para o mercado de PSA (Pagament
 
 1. Clone o repositório:
 ```
-git clone https://github.com/seu-usuario/agua-viva.git
+git clone https://github.com/mhchacon/agua-viva.git
 cd agua-viva
 ```
 
